@@ -1,0 +1,15 @@
+uk/ac/ed/inf/infraq/service/RedisService.class
+uk/ac/ed/inf/infraq/config/RedisConfig.class
+uk/ac/ed/inf/infraq/repository/InferenceRepository.class
+uk/ac/ed/inf/infraq/config/RabbitMQConfig.class
+uk/ac/ed/inf/infraq/InfraQApplication.class
+uk/ac/ed/inf/infraq/repository/BenchmarkRepository.class
+uk/ac/ed/inf/infraq/config/PostgresConfig.class
+uk/ac/ed/inf/infraq/controller/BenchmarkController.class
+uk/ac/ed/inf/infraq/service/BenchmarkService.class
+uk/ac/ed/inf/infraq/dto/InferRequest.class
+uk/ac/ed/inf/infraq/dto/BenchmarkConfig.class
+uk/ac/ed/inf/infraq/controller/MetricsController.class
+uk/ac/ed/inf/infraq/service/InferenceService.class
+uk/ac/ed/inf/infraq/controller/InferenceController.class
+uk/ac/ed/inf/infraq/service/RabbitMQPublisher.class

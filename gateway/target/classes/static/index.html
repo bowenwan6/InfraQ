@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InfraQ — LLM Inference Gateway</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<header>
+    <h1>InfraQ</h1>
+    <span class="subtitle">Parallel LLM Inference Gateway — Scheduling Strategy Comparison</span>
+</header>
+
+<nav class="tabs">
+    <button class="tab-btn active" data-tab="submit">Submit</button>
+    <button class="tab-btn" data-tab="results">Results</button>
+    <button class="tab-btn" data-tab="benchmark">Benchmark</button>
+    <button class="tab-btn" data-tab="metrics">Metrics</button>
+</nav>
+
+<!-- ============ SUBMIT TAB ============ -->
+<div id="tab-submit" class="tab-content active">
+    <h2>Submit Inference Request</h2>
+
+    <label>Prompt</label>
+    <textarea id="prompt" rows="4" placeholder="e.g. Explain the concept of cloud computing in 2-3 sentences."></textarea>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div>
+            <label>Task Type</label>
+            <select id="taskType">
+                <option value="chat">Chat</option>
+                <option value="summarize">Summarize</option>
+                <option value="analyze">Analyze</option>
+            </select>
+        </div>
+        <div>
+            <label>Priority</label>
+            <select id="priority">
+                <option value="0">Normal</option>
+                <option value="1">High</option>
+                <option value="2">Urgent</option>
+            </select>
+        </div>
+    </div>
+
+    <button onclick="submitRequest()">Submit Request</button>
+
+    <div id="submit-result" class="result-box hidden">
+        <div>
+            <span class="badge" id="submit-badge">QUEUED</span>
+            <span id="submit-id" style="margin-left:12px; font-size:12px; color:var(--text-muted)"></span>
+        </div>
+        <pre id="submit-response"></pre>
+        <div class="timing" id="submit-timing" style="display:none">
+            <span>Queue: <b id="t-queue">-</b>ms</span>
+            <span>Inference: <b id="t-infer">-</b>ms</span>
+            <span>Total: <b id="t-total">-</b>ms</span>
+            <span>Cache: <b id="t-cache">-</b></span>
+        </div>
+    </div>
+</div>
+
+<!-- ============ RESULTS TAB ============ -->
+<div id="tab-results" class="tab-content">
+    <h2>Recent Requests</h2>
+    <button onclick="loadResults()">Refresh</button>
+    <div id="results-list" style="margin-top:16px"></div>
+</div>
+
+<!-- ============ BENCHMARK TAB ============ -->
+<div id="tab-benchmark" class="tab-content">
+    <h2>Run Benchmark</h2>
+
+    <div class="bench-config">
+        <div>
+            <label>Number of Requests</label>
+            <input type="number" id="bench-num" value="20" min="5" max="100">
+        </div>
+        <div>
+            <label>Strategy</label>
+            <select id="bench-strategy">
+                <option value="sequential">Sequential (baseline)</option>
+                <option value="static">Static Batching</option>
+                <option value="continuous" selected>Continuous Dispatching</option>
+                <option value="cached">Cache-Aware</option>
+            </select>
+        </div>
+        <div>
+            <label>Concurrent Slots</label>
+            <select id="bench-slots">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="4" selected>4</option>
+                <option value="8">8</option>
+            </select>
+        </div>
+    </div>
+
+    <button id="bench-start-btn" onclick="runBenchmark()">Run Benchmark</button>
+
+    <div id="bench-progress" class="result-box hidden" style="margin-top:16px">
+        <div style="display:flex; justify-content:space-between; margin-bottom:8px">
+            <span class="badge running" id="bench-status-badge">RUNNING</span>
+            <span id="bench-pct" style="font-size:13px; color:var(--text-muted)">0 / 0</span>
+        </div>
+        <progress id="bench-bar" max="100" value="0"></progress>
+    </div>
+
+    <div id="bench-results" class="hidden">
+        <!-- Summary table -->
+        <table id="bench-summary" style="margin-top:20px">
+            <tbody></tbody>
+        </table>
+
+        <!-- Charts -->
+        <div class="chart-row">
+            <div class="chart-box">
+                <canvas id="chart-latency"></canvas>
+            </div>
+            <div class="chart-box">
+                <canvas id="chart-breakdown"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Benchmark history & comparison -->
+    <h3 style="margin-top:32px">Benchmark History</h3>
+    <button onclick="loadBenchmarks()">Refresh</button>
+    <div id="bench-history" style="margin-top:12px"></div>
+
+    <h3 style="margin-top:24px">Compare Runs</h3>
+    <div class="chart-row">
+        <div class="chart-box">
+            <canvas id="chart-compare-latency"></canvas>
+        </div>
+        <div class="chart-box">
+            <canvas id="chart-compare-throughput"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- ============ METRICS TAB ============ -->
+<div id="tab-metrics" class="tab-content">
+    <h2>Live Metrics</h2>
+    <div class="metrics-grid">
+        <div class="metric-card">
+            <div class="value" id="m-submitted">0</div>
+            <div class="label">Submitted</div>
+        </div>
+        <div class="metric-card">
+            <div class="value" id="m-completed">0</div>
+            <div class="label">Completed</div>
+        </div>
+        <div class="metric-card">
+            <div class="value" id="m-cache">0</div>
+            <div class="label">Cache Hits</div>
+        </div>
+        <div class="metric-card">
+            <div class="value" id="m-failed">0</div>
+            <div class="label">Failed</div>
+        </div>
+        <div class="metric-card">
+            <div class="value" id="m-queue">0</div>
+            <div class="label">Queue Depth</div>
+        </div>
+        <div class="metric-card">
+            <div class="value" id="m-strategy">-</div>
+            <div class="label">Active Strategy</div>
+        </div>
+        <div class="metric-card">
+            <div class="value" id="m-slots">-</div>
+            <div class="label">Concurrent Slots</div>
+        </div>
+    </div>
+
+    <h3>Update Configuration</h3>
+    <div style="display:grid; grid-template-columns:1fr 1fr auto; gap:12px; align-items:end;">
+        <div>
+            <label>Strategy</label>
+            <select id="config-strategy">
+                <option value="sequential">Sequential</option>
+                <option value="static">Static Batching</option>
+                <option value="continuous">Continuous</option>
+                <option value="cached">Cache-Aware</option>
+            </select>
+        </div>
+        <div>
+            <label>Slots</label>
+            <select id="config-slots">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="4">4</option>
+                <option value="8">8</option>
+            </select>
+        </div>
+        <button onclick="updateConfig()">Apply</button>
+    </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

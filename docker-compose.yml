@@ -1,0 +1,89 @@
+services:
+  gateway:
+    build: ./gateway
+    container_name: infraq-gateway
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      ACP_POSTGRES: jdbc:postgresql://postgres:5432/infraq
+      REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
+    restart: unless-stopped
+
+  worker:
+    build: ./worker
+    container_name: infraq-worker
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      REDIS_HOST: redis
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: infraq
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      # Ollama runs natively on host for Metal GPU acceleration
+      OLLAMA_HOST: http://host.docker.internal:11434
+      MODEL: qwen2.5:1.5b
+      NUM_CONCURRENT_SLOTS: "4"
+      SCHEDULING_STRATEGY: continuous
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: infraq-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: infraq
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: infraq-redis
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: infraq-rabbitmq
+    ports:
+      - "5673:5672"
+      - "15673:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:

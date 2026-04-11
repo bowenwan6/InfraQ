@@ -37,10 +37,12 @@ public class InferenceRepository {
 
     public List<Map<String, Object>> listRecent(int limit) {
         return jdbc.queryForList(
-            "SELECT r.id, r.prompt, r.task_type, r.status, r.submitted_at, " +
-            "r.total_latency_ms, r.cache_hit, res.output " +
+            "SELECT r.id, r.prompt, r.task_type, r.priority, r.status, r.submitted_at, " +
+            "r.queue_wait_ms, r.inference_ms, r.total_latency_ms, r.cache_hit, r.error_message, res.output " +
             "FROM infraq.inference_requests r " +
+            "LEFT JOIN infraq.benchmark_requests br ON r.id = br.request_id " +
             "LEFT JOIN infraq.inference_results res ON r.id = res.request_id " +
+            "WHERE br.request_id IS NULL " +
             "ORDER BY r.submitted_at DESC LIMIT ?", limit
         );
     }

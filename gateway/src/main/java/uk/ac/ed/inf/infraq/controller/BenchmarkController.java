@@ -19,17 +19,19 @@ public class BenchmarkController {
     }
 
     /**
-     * Start a new benchmark run. Configures worker strategy/slots via Redis,
-     * submits N requests, and tracks completion asynchronously.
+     * Start a new benchmark run. The gateway applies the requested worker
+     * config, waits until the worker reports it as active, then submits the run.
      */
     @PostMapping
     public ResponseEntity<Map<String, Object>> start(@RequestBody BenchmarkConfig config) {
-        String benchId = benchmarkService.start(config);
-        return ResponseEntity.accepted().body(Map.of(
-                "benchmark_id", benchId,
-                "status", "RUNNING",
-                "total_requests", config.getNumRequests()
-        ));
+        try {
+            return ResponseEntity.accepted().body(benchmarkService.start(config));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(409).body(Map.of(
+                    "status", "FAILED",
+                    "error", e.getMessage()
+            ));
+        }
     }
 
     /**

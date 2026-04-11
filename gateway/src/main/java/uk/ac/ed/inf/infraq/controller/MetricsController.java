@@ -26,13 +26,24 @@ public class MetricsController {
     @GetMapping
     public ResponseEntity<Map<String, Object>> getMetrics() {
         Map<String, Object> metrics = new LinkedHashMap<>();
+        String desiredStrategy = redis.getOrDefault("config:strategy", "continuous");
+        String desiredSlots = redis.getOrDefault("config:num_slots", "4");
+        String effectiveStrategy = redis.getOrDefault("worker:runtime:strategy", desiredStrategy);
+        String effectiveSlots = redis.getOrDefault("worker:runtime:num_slots", desiredSlots);
+        String workerPhase = redis.getOrDefault("worker:runtime:phase", "UNKNOWN");
+
         metrics.put("total_submitted", Long.parseLong(redis.getOrDefault("metrics:total_submitted", "0")));
         metrics.put("total_completed", Long.parseLong(redis.getOrDefault("metrics:total_completed", "0")));
         metrics.put("total_cache_hits", Long.parseLong(redis.getOrDefault("metrics:total_cache_hits", "0")));
         metrics.put("total_failed", Long.parseLong(redis.getOrDefault("metrics:total_failed", "0")));
         metrics.put("queue_depth", rabbit.getQueueDepth());
-        metrics.put("active_strategy", redis.getOrDefault("config:strategy", "continuous"));
-        metrics.put("active_slots", redis.getOrDefault("config:num_slots", "4"));
+        metrics.put("desired_strategy", desiredStrategy);
+        metrics.put("desired_slots", desiredSlots);
+        metrics.put("effective_strategy", effectiveStrategy);
+        metrics.put("effective_slots", effectiveSlots);
+        metrics.put("worker_phase", workerPhase);
+        metrics.put("active_strategy", effectiveStrategy);
+        metrics.put("active_slots", effectiveSlots);
         return ResponseEntity.ok(metrics);
     }
 

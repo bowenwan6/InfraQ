@@ -41,13 +41,20 @@ public class BenchmarkRepository {
 
     public void finishRun(String benchmarkId, double avgLatency, double p50, double p95,
                           double p99, double throughput, double cacheHitRate,
-                          double avgQueueWait, long finishedAt) {
+                          double avgQueueWait, long finishedAt, String status) {
         jdbc.update(
             "UPDATE infraq.benchmark_runs SET " +
             "avg_latency_ms=?, p50_latency_ms=?, p95_latency_ms=?, p99_latency_ms=?, " +
-            "throughput_rps=?, cache_hit_rate=?, avg_queue_wait=?, finished_at=?, status='COMPLETED' " +
+            "throughput_rps=?, cache_hit_rate=?, avg_queue_wait=?, finished_at=?, status=? " +
             "WHERE id = ?::uuid",
-            avgLatency, p50, p95, p99, throughput, cacheHitRate, avgQueueWait, finishedAt, benchmarkId
+            avgLatency, p50, p95, p99, throughput, cacheHitRate, avgQueueWait, finishedAt, status, benchmarkId
+        );
+    }
+
+    public void markStatus(String benchmarkId, String status, long finishedAt) {
+        jdbc.update(
+            "UPDATE infraq.benchmark_runs SET status=?, finished_at=? WHERE id=?::uuid",
+            status, finishedAt, benchmarkId
         );
     }
 

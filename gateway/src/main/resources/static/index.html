@@ -3,203 +3,267 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>InfraQ — LLM Inference Gateway</title>
+    <title>InfraQ - Local Inference Engine</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body>
-
-<header>
-    <h1>InfraQ</h1>
-    <span class="subtitle">Parallel LLM Inference Gateway — Scheduling Strategy Comparison</span>
+<header class="app-header">
+    <div>
+        <h1>InfraQ</h1>
+        <p class="subtitle">MacBook-first local inference engine for queued LLM requests and scheduling experiments.</p>
+    </div>
+    <div class="header-pill">Ollama on host + local queueing + benchmark lab</div>
 </header>
 
 <nav class="tabs">
-    <button class="tab-btn active" data-tab="submit">Submit</button>
-    <button class="tab-btn" data-tab="results">Results</button>
-    <button class="tab-btn" data-tab="benchmark">Benchmark</button>
-    <button class="tab-btn" data-tab="metrics">Metrics</button>
+    <button class="tab-btn active" data-tab="chat" type="button">Chat</button>
+    <button class="tab-btn" data-tab="benchmark" type="button">Benchmark Lab</button>
+    <button class="tab-btn" data-tab="runtime" type="button">Runtime</button>
 </nav>
 
-<!-- ============ SUBMIT TAB ============ -->
-<div id="tab-submit" class="tab-content active">
-    <h2>Submit Inference Request</h2>
-
-    <label>Prompt</label>
-    <textarea id="prompt" rows="4" placeholder="e.g. Explain the concept of cloud computing in 2-3 sentences."></textarea>
-
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
-        <div>
-            <label>Task Type</label>
-            <select id="taskType">
-                <option value="chat">Chat</option>
-                <option value="summarize">Summarize</option>
-                <option value="analyze">Analyze</option>
-            </select>
-        </div>
-        <div>
-            <label>Priority</label>
-            <select id="priority">
-                <option value="0">Normal</option>
-                <option value="1">High</option>
-                <option value="2">Urgent</option>
-            </select>
-        </div>
-    </div>
-
-    <button onclick="submitRequest()">Submit Request</button>
-
-    <div id="submit-result" class="result-box hidden">
-        <div>
-            <span class="badge" id="submit-badge">QUEUED</span>
-            <span id="submit-id" style="margin-left:12px; font-size:12px; color:var(--text-muted)"></span>
-        </div>
-        <pre id="submit-response"></pre>
-        <div class="timing" id="submit-timing" style="display:none">
-            <span>Queue: <b id="t-queue">-</b>ms</span>
-            <span>Inference: <b id="t-infer">-</b>ms</span>
-            <span>Total: <b id="t-total">-</b>ms</span>
-            <span>Cache: <b id="t-cache">-</b></span>
-        </div>
-    </div>
-</div>
-
-<!-- ============ RESULTS TAB ============ -->
-<div id="tab-results" class="tab-content">
-    <h2>Recent Requests</h2>
-    <button onclick="loadResults()">Refresh</button>
-    <div id="results-list" style="margin-top:16px"></div>
-</div>
-
-<!-- ============ BENCHMARK TAB ============ -->
-<div id="tab-benchmark" class="tab-content">
-    <h2>Run Benchmark</h2>
-
-    <div class="bench-config">
-        <div>
-            <label>Number of Requests</label>
-            <input type="number" id="bench-num" value="20" min="5" max="100">
-        </div>
-        <div>
-            <label>Strategy</label>
-            <select id="bench-strategy">
-                <option value="sequential">Sequential (baseline)</option>
-                <option value="static">Static Batching</option>
-                <option value="continuous" selected>Continuous Dispatching</option>
-                <option value="cached">Cache-Aware</option>
-            </select>
-        </div>
-        <div>
-            <label>Concurrent Slots</label>
-            <select id="bench-slots">
-                <option value="1">1</option>
-                <option value="2">2</option>
-                <option value="4" selected>4</option>
-                <option value="8">8</option>
-            </select>
-        </div>
-    </div>
-
-    <button id="bench-start-btn" onclick="runBenchmark()">Run Benchmark</button>
-
-    <div id="bench-progress" class="result-box hidden" style="margin-top:16px">
-        <div style="display:flex; justify-content:space-between; margin-bottom:8px">
-            <span class="badge running" id="bench-status-badge">RUNNING</span>
-            <span id="bench-pct" style="font-size:13px; color:var(--text-muted)">0 / 0</span>
-        </div>
-        <progress id="bench-bar" max="100" value="0"></progress>
-    </div>
-
-    <div id="bench-results" class="hidden">
-        <!-- Summary table -->
-        <table id="bench-summary" style="margin-top:20px">
-            <tbody></tbody>
-        </table>
-
-        <!-- Charts -->
-        <div class="chart-row">
-            <div class="chart-box">
-                <canvas id="chart-latency"></canvas>
+<main>
+    <section id="tab-chat" class="tab-content active chat-page">
+        <div class="chat-shell">
+            <div class="section-head">
+                <div>
+                    <h2>Chat</h2>
+                    <p>Each prompt is queued as a job, and every assistant reply resolves in its own status bubble.</p>
+                </div>
+                <button id="clear-chat-btn" class="ghost-btn" type="button">Clear Session</button>
             </div>
-            <div class="chart-box">
-                <canvas id="chart-breakdown"></canvas>
+
+            <div id="chat-thread" class="chat-thread"></div>
+
+            <form id="chat-form" class="chat-composer">
+                <div class="composer-meta">
+                    <label class="inline-field">
+                        <span>Task</span>
+                        <select id="taskType">
+                            <option value="chat">Chat</option>
+                            <option value="summarize">Summarize</option>
+                            <option value="analyze">Analyze</option>
+                        </select>
+                    </label>
+                    <label class="inline-field">
+                        <span>Priority</span>
+                        <select id="priority">
+                            <option value="0">Normal</option>
+                            <option value="1">High</option>
+                            <option value="2">Urgent</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div class="composer-row">
+                    <textarea id="prompt" rows="1" placeholder="Message InfraQ..."></textarea>
+                    <button id="send-btn" type="submit">Send</button>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <section id="tab-benchmark" class="tab-content benchmark-page">
+        <div class="section-head">
+            <div>
+                <h2>Benchmark Lab</h2>
+                <p>Select a scheduling strategy, wait for the worker to apply it, then run a controlled workload.</p>
             </div>
         </div>
-    </div>
 
-    <!-- Benchmark history & comparison -->
-    <h3 style="margin-top:32px">Benchmark History</h3>
-    <button onclick="loadBenchmarks()">Refresh</button>
-    <div id="bench-history" style="margin-top:12px"></div>
+        <div class="benchmark-grid">
+            <section class="panel run-setup">
+                <h3>Run Setup</h3>
+                <p class="panel-copy">InfraQ applies the selected worker config before benchmark requests are submitted.</p>
 
-    <h3 style="margin-top:24px">Compare Runs</h3>
-    <div class="chart-row">
-        <div class="chart-box">
-            <canvas id="chart-compare-latency"></canvas>
-        </div>
-        <div class="chart-box">
-            <canvas id="chart-compare-throughput"></canvas>
-        </div>
-    </div>
-</div>
+                <div class="field-grid">
+                    <label>
+                        <span>Number of Requests</span>
+                        <input type="number" id="bench-num" value="50" min="5" max="200">
+                    </label>
 
-<!-- ============ METRICS TAB ============ -->
-<div id="tab-metrics" class="tab-content">
-    <h2>Live Metrics</h2>
-    <div class="metrics-grid">
-        <div class="metric-card">
-            <div class="value" id="m-submitted">0</div>
-            <div class="label">Submitted</div>
-        </div>
-        <div class="metric-card">
-            <div class="value" id="m-completed">0</div>
-            <div class="label">Completed</div>
-        </div>
-        <div class="metric-card">
-            <div class="value" id="m-cache">0</div>
-            <div class="label">Cache Hits</div>
-        </div>
-        <div class="metric-card">
-            <div class="value" id="m-failed">0</div>
-            <div class="label">Failed</div>
-        </div>
-        <div class="metric-card">
-            <div class="value" id="m-queue">0</div>
-            <div class="label">Queue Depth</div>
-        </div>
-        <div class="metric-card">
-            <div class="value" id="m-strategy">-</div>
-            <div class="label">Active Strategy</div>
-        </div>
-        <div class="metric-card">
-            <div class="value" id="m-slots">-</div>
-            <div class="label">Concurrent Slots</div>
-        </div>
-    </div>
+                    <label>
+                        <span>Scheduling Strategy</span>
+                        <select id="bench-strategy">
+                            <option value="sequential">Sequential</option>
+                            <option value="static">Static Batching</option>
+                            <option value="continuous" selected>Continuous Dispatching</option>
+                            <option value="cached">Cache-Aware</option>
+                        </select>
+                    </label>
 
-    <h3>Update Configuration</h3>
-    <div style="display:grid; grid-template-columns:1fr 1fr auto; gap:12px; align-items:end;">
-        <div>
-            <label>Strategy</label>
-            <select id="config-strategy">
-                <option value="sequential">Sequential</option>
-                <option value="static">Static Batching</option>
-                <option value="continuous">Continuous</option>
-                <option value="cached">Cache-Aware</option>
-            </select>
+                    <label>
+                        <span>Prompt Workload</span>
+                        <select id="bench-workload">
+                            <option value="unique" selected>Unique Prompts</option>
+                            <option value="repeated">Repeated Prompts</option>
+                        </select>
+                    </label>
+
+                    <label>
+                        <span>Concurrent Slots</span>
+                        <select id="bench-slots">
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="4" selected>4</option>
+                            <option value="8">8</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div class="hint-list">
+                    <div>
+                        <strong>Sequential</strong>
+                        <span>One request at a time. Useful as the baseline.</span>
+                    </div>
+                    <div>
+                        <strong>Static</strong>
+                        <span>Build a batch, run it, then wait for the whole batch to finish.</span>
+                    </div>
+                    <div>
+                        <strong>Continuous</strong>
+                        <span>Keep the worker slots full and refill immediately when one completes.</span>
+                    </div>
+                    <div>
+                        <strong>Cache-Aware</strong>
+                        <span>Continuous dispatch plus prompt-cache short-circuiting.</span>
+                    </div>
+                    <div>
+                        <strong>Unique prompts</strong>
+                        <span>All prompts are distinct. Best for measuring pure scheduling and throughput.</span>
+                    </div>
+                    <div>
+                        <strong>Repeated prompts</strong>
+                        <span>A hot prompt set repeats with periodic fresh prompts mixed in for cache-aware tests.</span>
+                    </div>
+                </div>
+
+                <button id="bench-start-btn" type="button">Start Benchmark</button>
+                <p id="bench-launch-note" class="muted-text">The gateway waits until the worker reports the requested runtime config.</p>
+            </section>
+
+            <section class="panel runtime-panel">
+                <h3>Worker Runtime</h3>
+                <div class="runtime-grid">
+                    <div class="runtime-card">
+                        <span>Desired</span>
+                        <strong id="bench-runtime-desired">-</strong>
+                    </div>
+                    <div class="runtime-card">
+                        <span>Effective</span>
+                        <strong id="bench-runtime-effective">-</strong>
+                    </div>
+                    <div class="runtime-card">
+                        <span>Phase</span>
+                        <strong id="bench-runtime-phase">-</strong>
+                    </div>
+                    <div class="runtime-card">
+                        <span>Queue Depth</span>
+                        <strong id="bench-runtime-queue">-</strong>
+                    </div>
+                </div>
+                <p id="bench-runtime-note" class="muted-text">Runtime state refreshes automatically while Benchmark Lab is open.</p>
+            </section>
         </div>
-        <div>
-            <label>Slots</label>
-            <select id="config-slots">
-                <option value="1">1</option>
-                <option value="2">2</option>
-                <option value="4">4</option>
-                <option value="8">8</option>
-            </select>
+
+        <section id="bench-progress-panel" class="panel progress-panel hidden">
+            <div class="progress-head">
+                <div class="progress-copy">
+                    <span class="badge running" id="bench-status-badge">PREPARING</span>
+                    <strong id="bench-active-config">Preparing worker runtime</strong>
+                </div>
+                <span id="bench-pct">0 / 0</span>
+            </div>
+            <progress id="bench-bar" max="100" value="0"></progress>
+            <p id="bench-status-text" class="muted-text">Waiting for benchmark to start...</p>
+        </section>
+
+        <section id="bench-error-panel" class="panel error-panel hidden">
+            <h3>Benchmark Error</h3>
+            <p id="bench-error-text"></p>
+        </section>
+
+        <section id="bench-results" class="hidden">
+            <div id="bench-stats" class="stats-grid"></div>
+
+            <div class="chart-row">
+                <section class="panel chart-panel">
+                    <canvas id="chart-latency"></canvas>
+                </section>
+                <section class="panel chart-panel">
+                    <canvas id="chart-breakdown"></canvas>
+                </section>
+            </div>
+        </section>
+
+        <section class="panel history-panel">
+            <div class="panel-head-inline">
+                <div>
+                    <h3>Recent Runs</h3>
+                    <p class="muted-text">Completed, timed out, and failed runs are listed with their effective runtime config.</p>
+                </div>
+                <button id="bench-refresh-btn" class="ghost-btn" type="button">Refresh</button>
+            </div>
+            <div id="bench-history" class="run-list"></div>
+        </section>
+
+        <p id="compare-note" class="muted-text chart-note">Run at least two completed benchmarks to unlock comparison charts.</p>
+
+        <div class="chart-row comparison-row">
+            <section class="panel chart-panel">
+                <canvas id="chart-compare-latency"></canvas>
+            </section>
+            <section class="panel chart-panel">
+                <canvas id="chart-compare-throughput"></canvas>
+            </section>
         </div>
-        <button onclick="updateConfig()">Apply</button>
-    </div>
-</div>
+    </section>
+
+    <section id="tab-runtime" class="tab-content runtime-page">
+        <div class="section-head">
+            <div>
+                <h2>Runtime</h2>
+                <p>Live queue, worker, and request counters for the local inference stack.</p>
+            </div>
+            <button id="runtime-refresh-btn" class="ghost-btn" type="button">Refresh</button>
+        </div>
+
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <span class="metric-label">Submitted</span>
+                <strong class="metric-value" id="m-submitted">0</strong>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Completed</span>
+                <strong class="metric-value" id="m-completed">0</strong>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Cache Hits</span>
+                <strong class="metric-value" id="m-cache">0</strong>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Failed</span>
+                <strong class="metric-value" id="m-failed">0</strong>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Queue Depth</span>
+                <strong class="metric-value" id="m-queue">0</strong>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Desired Config</span>
+                <strong class="metric-value metric-config" id="m-desired">-</strong>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Effective Config</span>
+                <strong class="metric-value metric-config" id="m-effective">-</strong>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Worker Phase</span>
+                <strong class="metric-value metric-config" id="m-phase">-</strong>
+            </div>
+        </div>
+    </section>
+</main>
 
 <script src="app.js"></script>
 </body>

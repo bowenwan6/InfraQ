@@ -22,7 +22,10 @@ document.getElementById("clear-chat-btn").addEventListener("click", clearChatSes
 document.getElementById("bench-start-btn").addEventListener("click", runBenchmark);
 document.getElementById("bench-refresh-btn").addEventListener("click", loadBenchmarks);
 document.getElementById("runtime-refresh-btn").addEventListener("click", refreshMetrics);
-document.getElementById("bench-strategy").addEventListener("change", markBenchmarkFormTouched);
+document.getElementById("bench-strategy").addEventListener("change", () => {
+    markBenchmarkFormTouched();
+    syncStrategyDependentControls();
+});
 document.getElementById("bench-slots").addEventListener("change", markBenchmarkFormTouched);
 promptInput.addEventListener("input", resizePromptInput);
 promptInput.addEventListener("keydown", (event) => {
@@ -323,6 +326,26 @@ function syncBenchmarkForm(metrics) {
     if (slots && [...slotsInput.options].some((option) => option.value === slots)) {
         slotsInput.value = slots;
     }
+
+    syncStrategyDependentControls();
+}
+
+function syncStrategyDependentControls() {
+    const strategy = document.getElementById("bench-strategy").value;
+    const slotsInput = document.getElementById("bench-slots");
+    const launchNote = document.getElementById("bench-launch-note");
+
+    if (strategy === "sequential") {
+        slotsInput.value = "1";
+        slotsInput.disabled = true;
+        launchNote.textContent =
+            "Sequential is the baseline mode and always runs with exactly 1 active slot.";
+        return;
+    }
+
+    slotsInput.disabled = false;
+    launchNote.textContent =
+        "The gateway waits until the worker reports the requested runtime config.";
 }
 
 function resizePromptInput() {
@@ -343,7 +366,9 @@ async function runBenchmark() {
         numRequests: parseInt(document.getElementById("bench-num").value, 10),
         strategy: document.getElementById("bench-strategy").value,
         workloadMode: document.getElementById("bench-workload").value,
-        numSlots: parseInt(document.getElementById("bench-slots").value, 10)
+        numSlots: document.getElementById("bench-strategy").value === "sequential"
+            ? 1
+            : parseInt(document.getElementById("bench-slots").value, 10)
     };
 
     document.getElementById("bench-start-btn").disabled = true;
@@ -592,22 +617,24 @@ async function refreshMetrics() {
         const desired = `${metrics.desired_strategy || "-"} / ${metrics.desired_slots || "-"} slots`;
         const effective = `${metrics.effective_strategy || "-"} / ${metrics.effective_slots || "-"} slots`;
         const phase = metrics.worker_phase || "UNKNOWN";
+        const queueDepth = metrics.queue_depth >= 0 ? metrics.queue_depth : "?";
+        const activeRequests = Number(metrics.active_requests || 0);
+        const bufferedMessages = Number(metrics.buffered_messages || 0);
 
         document.getElementById("bench-runtime-desired").textContent = desired;
         document.getElementById("bench-runtime-effective").textContent = effective;
         document.getElementById("bench-runtime-phase").textContent = phase;
-        document.getElementById("bench-runtime-queue").textContent =
-            metrics.queue_depth >= 0 ? metrics.queue_depth : "?";
+        document.getElementById("bench-runtime-queue").textContent = queueDepth;
         document.getElementById("bench-runtime-note").textContent =
             desired === effective
-                ? `Worker is ready. Phase: ${phase}.`
-                : "Worker is still applying the requested runtime config.";
+                ? `Worker is ready. Phase: ${phase}. Active: ${activeRequests}. Buffered: ${bufferedMessages}.`
+                : `Worker is still applying the requested runtime config. Queue: ${queueDepth}. Active: ${activeRequests}. Buffered: ${bufferedMessages}.`;
 
         document.getElementById("m-submitted").textContent = metrics.total_submitted || 0;
         document.getElementById("m-completed").textContent = metrics.total_completed || 0;
         document.getElementById("m-cache").textContent = metrics.total_cache_hits || 0;
         document.getElementById("m-failed").textContent = metrics.total_failed || 0;
-        document.getElementById("m-queue").textContent = metrics.queue_depth >= 0 ? metrics.queue_depth : "?";
+        document.getElementById("m-queue").textContent = queueDepth;
         document.getElementById("m-desired").textContent = desired;
         document.getElementById("m-effective").textContent = effective;
         document.getElementById("m-phase").textContent = phase;
@@ -721,3 +748,4 @@ resizePromptInput();
 loadChatHistory();
 loadBenchmarks();
 refreshMetrics();
+syncStrategyDependentControls();

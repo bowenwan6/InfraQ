@@ -56,14 +56,17 @@ class InferenceWorker:
         self.connection = None
         self.channel = None
         self.queue = None
+        self.dispatch_queue = asyncio.Queue()
         self.running = True
 
         self.runtime_strategy = STRATEGY
         self.runtime_slots = max(1, NUM_SLOTS)
         self.runtime_phase = "STARTING"
+        self._active_requests = 0
 
         self._background_tasks = set()
         self._heartbeat_task = None
+        self._consumer_tag = None
 
     async def start(self):
         log.info("Worker booting: default_strategy=%s slots=%d model=%s", STRATEGY, NUM_SLOTS, MODEL)
@@ -84,6 +87,7 @@ class InferenceWorker:
         )
         self.channel = await self.connection.channel()
         self.queue = await self.channel.declare_queue(QUEUE_NAME, durable=True)
+        self._consumer_tag = await self.queue.consume(self._enqueue_message, no_ack=False)
 
         self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
 
@@ -119,7 +123,7 @@ class InferenceWorker:
                 continue
 
             if self._desired_config_changed(expected_strategy, expected_slots):
-                await message.nack(requeue=True)
+                await self._safe_nack(message, requeue=True)
                 self._set_runtime(phase="SWITCHING")
                 return
 
@@ -155,7 +159,7 @@ class InferenceWorker:
                     continue
 
                 if self._desired_config_changed(expected_strategy, batch_size) and not batch:
-                    await message.nack(requeue=True)
+                    await self._safe_nack(message, requeue=True)
                     self._set_runtime(phase="SWITCHING")
                     return
 
@@ -189,7 +193,7 @@ class InferenceWorker:
                 continue
 
             if self._desired_config_changed(expected_strategy, num_slots):
-                await message.nack(requeue=True)
+                await self._safe_nack(message, requeue=True)
                 self._set_runtime(phase="DRAINING")
                 await self._drain_background_tasks()
                 self._set_runtime(phase="SWITCHING")
@@ -203,23 +207,8 @@ class InferenceWorker:
         semaphore = asyncio.Semaphore(num_slots)
 
         async def process_with_cache(message):
-            data = json.loads(message.body)
-            req_id = data["id"]
-            prompt = data["prompt"]
-            submitted_at = data["submitted_at"]
-
-            cache_key = self._prompt_hash(prompt)
-            cached = self.rdb.get(f"cache:{cache_key}")
-
-            if cached:
-                queue_wait = int(time.time() * 1000) - submitted_at
-                log.info("[CACHE HIT] req=%s (queue_wait=%dms)", req_id[:8], queue_wait)
-                self._publish_result(req_id, cached, queue_wait, 0, cache_hit=True)
-                await message.ack()
-                return
-
             async with semaphore:
-                await self._process_message_inner(data, message)
+                await self._process_message(message, allow_cache=True)
 
         while self.running:
             if self._desired_config_changed(expected_strategy, num_slots):
@@ -233,7 +222,7 @@ class InferenceWorker:
                 continue
 
             if self._desired_config_changed(expected_strategy, num_slots):
-                await message.nack(requeue=True)
+                await self._safe_nack(message, requeue=True)
                 self._set_runtime(phase="DRAINING")
                 await self._drain_background_tasks()
                 self._set_runtime(phase="SWITCHING")
@@ -260,15 +249,18 @@ class InferenceWorker:
 
         raise RuntimeError(f"Model '{MODEL}' not available after 360 seconds")
 
-    async def _process_message(self, message):
+    async def _process_message(self, message, allow_cache=False):
+        self._active_requests += 1
         try:
             data = json.loads(message.body)
-            await self._process_message_inner(data, message)
+            await self._process_message_inner(data, message, allow_cache=allow_cache)
         except Exception as error:
             log.error("Failed to process message: %s", error)
-            await message.nack(requeue=True)
+            await self._safe_nack(message, requeue=True)
+        finally:
+            self._active_requests = max(0, self._active_requests - 1)
 
-    async def _process_message_inner(self, data, message):
+    async def _process_message_inner(self, data, message, allow_cache=False):
         req_id = data["id"]
         prompt = data["prompt"]
         submitted_at = data["submitted_at"]
@@ -278,18 +270,20 @@ class InferenceWorker:
             queue_wait = int(time.time() * 1000) - submitted_at
 
             cache_key = self._prompt_hash(prompt)
-            cached = self.rdb.get(f"cache:{cache_key}")
-            if cached:
-                log.info("[CACHE HIT] req=%s", req_id[:8])
-                self._publish_result(req_id, cached, queue_wait, 0, cache_hit=True)
-                await message.ack()
-                return
+            if allow_cache:
+                cached = self.rdb.get(f"cache:{cache_key}")
+                if cached:
+                    log.info("[CACHE HIT] req=%s", req_id[:8])
+                    self._publish_result(req_id, cached, queue_wait, 0, cache_hit=True)
+                    await self._safe_ack(message)
+                    return
 
             start_time = time.time()
             result, tokens_in, tokens_out = await self._call_ollama(prompt)
             inference_ms = int((time.time() - start_time) * 1000)
 
-            self.rdb.setex(f"cache:{cache_key}", CACHE_TTL, result)
+            if allow_cache:
+                self.rdb.setex(f"cache:{cache_key}", CACHE_TTL, result)
 
             total_ms = int(time.time() * 1000) - submitted_at
             self._publish_result(
@@ -300,7 +294,7 @@ class InferenceWorker:
 
             log.info("Completed req=%s inference=%dms queue_wait=%dms total=%dms",
                      req_id[:8], inference_ms, queue_wait, total_ms)
-            await message.ack()
+            await self._safe_ack(message)
 
         except Exception as error:
             log.error("Error processing req=%s: %s", req_id[:8], error)
@@ -308,7 +302,7 @@ class InferenceWorker:
             self.rdb.set(f"req:{req_id}:error", str(error))
             self.rdb.incr("metrics:total_failed")
             self._update_pg_error(req_id, str(error))
-            await message.ack()
+            await self._safe_ack(message)
 
     async def _call_ollama(self, prompt):
         payload = {
@@ -409,6 +403,9 @@ class InferenceWorker:
         except ValueError:
             num_slots = max(1, NUM_SLOTS)
 
+        if strategy == "sequential":
+            num_slots = 1
+
         return strategy, num_slots
 
     def _desired_config_changed(self, current_strategy, current_slots):
@@ -439,6 +436,8 @@ class InferenceWorker:
         pipeline.set("worker:runtime:strategy", self.runtime_strategy)
         pipeline.set("worker:runtime:num_slots", str(self.runtime_slots))
         pipeline.set("worker:runtime:phase", self.runtime_phase)
+        pipeline.set("worker:runtime:active_requests", str(self._active_requests))
+        pipeline.set("worker:runtime:buffered_messages", str(self.dispatch_queue.qsize()))
         pipeline.set("worker:runtime:heartbeat_at", str(int(time.time() * 1000)))
         pipeline.execute()
 
@@ -453,11 +452,30 @@ class InferenceWorker:
         pending = list(self._background_tasks)
         await asyncio.gather(*pending, return_exceptions=True)
 
+    async def _enqueue_message(self, message):
+        await self.dispatch_queue.put(message)
+
     async def _next_message(self, timeout=0.5):
         try:
-            return await self.queue.get(fail=False, timeout=timeout)
+            return await asyncio.wait_for(self.dispatch_queue.get(), timeout=timeout)
         except asyncio.TimeoutError:
             return None
+
+    async def _safe_ack(self, message):
+        try:
+            await message.ack()
+            return True
+        except Exception as error:
+            log.error("Failed to ack message: %s", error)
+            return False
+
+    async def _safe_nack(self, message, requeue=True):
+        try:
+            await message.nack(requeue=requeue)
+            return True
+        except Exception as error:
+            log.error("Failed to nack message: %s", error)
+            return False
 
     async def _shutdown(self):
         self._set_runtime(phase="STOPPING")
@@ -472,6 +490,12 @@ class InferenceWorker:
 
         if self.session:
             await self.session.close()
+
+        if self.queue and self._consumer_tag:
+            try:
+                await self.queue.cancel(self._consumer_tag)
+            except Exception:
+                pass
 
         if self.connection:
             await self.connection.close()

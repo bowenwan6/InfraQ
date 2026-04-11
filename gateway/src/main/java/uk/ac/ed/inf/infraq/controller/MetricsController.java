@@ -7,6 +7,7 @@ import uk.ac.ed.inf.infraq.service.RedisService;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/v1/metrics")
@@ -26,11 +27,13 @@ public class MetricsController {
     @GetMapping
     public ResponseEntity<Map<String, Object>> getMetrics() {
         Map<String, Object> metrics = new LinkedHashMap<>();
-        String desiredStrategy = redis.getOrDefault("config:strategy", "continuous");
-        String desiredSlots = redis.getOrDefault("config:num_slots", "4");
+        String desiredStrategy = normalizeStrategy(redis.getOrDefault("config:strategy", "continuous"));
+        String desiredSlots = normalizeSlots(desiredStrategy, redis.getOrDefault("config:num_slots", "4"));
         String effectiveStrategy = redis.getOrDefault("worker:runtime:strategy", desiredStrategy);
-        String effectiveSlots = redis.getOrDefault("worker:runtime:num_slots", desiredSlots);
+        String effectiveSlots = normalizeSlots(effectiveStrategy, redis.getOrDefault("worker:runtime:num_slots", desiredSlots));
         String workerPhase = redis.getOrDefault("worker:runtime:phase", "UNKNOWN");
+        long activeRequests = Long.parseLong(redis.getOrDefault("worker:runtime:active_requests", "0"));
+        long bufferedMessages = Long.parseLong(redis.getOrDefault("worker:runtime:buffered_messages", "0"));
 
         metrics.put("total_submitted", Long.parseLong(redis.getOrDefault("metrics:total_submitted", "0")));
         metrics.put("total_completed", Long.parseLong(redis.getOrDefault("metrics:total_completed", "0")));
@@ -42,6 +45,8 @@ public class MetricsController {
         metrics.put("effective_strategy", effectiveStrategy);
         metrics.put("effective_slots", effectiveSlots);
         metrics.put("worker_phase", workerPhase);
+        metrics.put("active_requests", activeRequests);
+        metrics.put("buffered_messages", bufferedMessages);
         metrics.put("active_strategy", effectiveStrategy);
         metrics.put("active_slots", effectiveSlots);
         return ResponseEntity.ok(metrics);
@@ -52,12 +57,37 @@ public class MetricsController {
      */
     @PutMapping("/config")
     public ResponseEntity<Map<String, Object>> updateConfig(@RequestBody Map<String, String> config) {
-        if (config.containsKey("strategy")) {
-            redis.set("config:strategy", config.get("strategy"));
+        String strategy = normalizeStrategy(config.getOrDefault(
+                "strategy", redis.getOrDefault("config:strategy", "continuous")
+        ));
+        String numSlots = normalizeSlots(
+                strategy,
+                config.getOrDefault("num_slots", redis.getOrDefault("config:num_slots", "4"))
+        );
+
+        redis.set("config:strategy", strategy);
+        redis.set("config:num_slots", numSlots);
+        return ResponseEntity.ok(Map.of(
+                "status", "updated",
+                "config", Map.of("strategy", strategy, "num_slots", numSlots)
+        ));
+    }
+
+    private String normalizeStrategy(String rawStrategy) {
+        String normalized = rawStrategy == null ? "continuous" : rawStrategy.trim().toLowerCase();
+        return Set.of("sequential", "static", "continuous", "cached").contains(normalized)
+                ? normalized
+                : "continuous";
+    }
+
+    private String normalizeSlots(String strategy, String rawSlots) {
+        if ("sequential".equals(strategy)) {
+            return "1";
         }
-        if (config.containsKey("num_slots")) {
-            redis.set("config:num_slots", config.get("num_slots"));
+        try {
+            return String.valueOf(Math.max(1, Integer.parseInt(rawSlots)));
+        } catch (NumberFormatException e) {
+            return "4";
         }
-        return ResponseEntity.ok(Map.of("status", "updated", "config", config));
     }
 }

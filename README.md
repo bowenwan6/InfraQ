@@ -18,6 +18,10 @@ InfraQ is a lightweight inference gateway designed for **MacBook-based local LLM
 
 The project is built around one practical goal: **compare inference scheduling strategies under a realistic queued workload** without standing up a large distributed serving stack.
 
+## Maintainer
+
+- `Bowen Wang`
+
 ## Why InfraQ
 
 - **MacBook-first**: Ollama runs natively on macOS instead of inside Docker, which is the right tradeoff for Apple GPU access.
@@ -59,14 +63,22 @@ InfraQ currently includes four worker modes:
 | `continuous` | Keep a fixed number of active slots and refill immediately | Throughput-oriented testing |
 | `cached` | Continuous scheduling plus prompt-cache short-circuiting | Repeated-prompt workloads |
 
+### Benchmark workloads
+
+InfraQ supports two benchmark prompt mixes:
+
+| Workload | What it measures | Cache behavior |
+| --- | --- | --- |
+| `unique` | Pure scheduling and throughput under non-repeating prompts | Should stay near `0%` cache hits when the run starts cold |
+| `repeated` | Cache-aware behavior with a hot prompt set plus some fresh prompts | Produces some cache hits, but is intentionally not `100%` duplicate |
+
 ### Dashboard
 
 The web UI includes:
 
-- **Submit**: send prompts and poll for completion
-- **Results**: inspect recent requests and outputs
-- **Benchmark**: run fixed prompt-set benchmarks and visualize latency breakdowns
-- **Metrics**: see queue depth, completions, cache hits, and active config
+- **Chat**: send prompts and poll for completion in a chat-style interface
+- **Benchmark Lab**: choose scheduling strategy, workload mix, request count, and compare runs
+- **Runtime**: see queue depth, completions, cache hits, and effective worker config
 
 ## Tech Stack
 
@@ -149,8 +161,9 @@ Start a benchmark:
 curl -X POST http://localhost:8081/api/v1/benchmark \
   -H "Content-Type: application/json" \
   -d '{
-    "numRequests": 20,
+    "numRequests": 50,
     "strategy": "continuous",
+    "workloadMode": "unique",
     "numSlots": 4
   }'
 ```
@@ -161,10 +174,15 @@ Fetch benchmark results:
 curl http://localhost:8081/api/v1/benchmark/<BENCHMARK_ID>
 ```
 
-The benchmark workload uses a fixed prompt set with intentional duplicates so you can observe the impact of prompt caching.
+Recommended usage:
+
+- Use `workloadMode = "unique"` when comparing `sequential`, `static`, and `continuous` as scheduling strategies.
+- Use `workloadMode = "repeated"` when evaluating `cached`.
+- `sequential` is the baseline mode and always runs with exactly `1` slot.
+- Run benchmarks **one at a time**. The launcher waits for the worker to become idle before it applies a new runtime config.
 
 > Note
-> The worker reads strategy and slot settings on startup. In the current implementation, changing benchmark/runtime config is **not a true live hot-swap** unless the worker is restarted with the new settings.
+> Benchmark runs clear the prompt-cache entries for the prompts in that run before submission. This avoids cross-run cache contamination and makes workload comparisons more meaningful.
 
 ## Configuration
 
@@ -227,11 +245,12 @@ python3 worker.py
 
 InfraQ is a strong local prototype, but it is not a production serving stack yet.
 
-- Worker strategy changes are **not truly hot-swapped**; the current worker reads strategy/slot settings when it starts.
 - There is **no authentication, multi-tenant isolation, or rate limiting**.
 - The system uses **single-worker local orchestration**, not distributed scheduling across multiple hosts.
 - Ollama inference is **non-streaming** in the current implementation.
 - Default database and broker credentials are for **local development only**.
+- Benchmark control is **single-run oriented**; concurrent benchmark runs should be avoided.
+- The worker-level cache is **global per model + prompt**, so non-benchmark traffic can still influence ad hoc performance outside controlled experiments.
 
 ## Validation
 
@@ -243,4 +262,4 @@ The current repository has been minimally validated with:
 
 ## License
 
-Add a license file before publishing publicly.
+MIT

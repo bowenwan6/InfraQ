@@ -6,6 +6,9 @@ import org.springframework.stereotype.Service;
 import uk.ac.ed.inf.infraq.dto.BenchmarkConfig;
 import uk.ac.ed.inf.infraq.repository.BenchmarkRepository;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -24,18 +27,25 @@ public class BenchmarkService {
 
     private static final Logger log = LoggerFactory.getLogger(BenchmarkService.class);
     private static final Set<String> ALLOWED_STRATEGIES = Set.of("sequential", "static", "continuous", "cached");
+    private static final Set<String> READY_PHASES = Set.of("READY", "RUNNING");
+    private static final long WORKER_IDLE_TIMEOUT_MS = 120_000;
     private static final long WORKER_APPLY_TIMEOUT_MS = 15_000;
+    private static final long BENCHMARK_TIMEOUT_MS = 1_800_000;
     private static final int MAX_REQUESTS = 200;
+    private static final String MODEL = System.getenv().getOrDefault("MODEL", "qwen2.5:1.5b");
 
     private final InferenceService inferenceService;
     private final BenchmarkRepository benchRepo;
     private final RedisService redis;
+    private final RabbitMQPublisher rabbit;
 
     public BenchmarkService(InferenceService inferenceService,
-                            BenchmarkRepository benchRepo, RedisService redis) {
+                            BenchmarkRepository benchRepo, RedisService redis,
+                            RabbitMQPublisher rabbit) {
         this.inferenceService = inferenceService;
         this.benchRepo = benchRepo;
         this.redis = redis;
+        this.rabbit = rabbit;
     }
 
     /**
@@ -45,14 +55,18 @@ public class BenchmarkService {
     public Map<String, Object> start(BenchmarkConfig config) {
         int numRequests = Math.max(1, Math.min(MAX_REQUESTS, config.getNumRequests()));
         String requestedStrategy = sanitizeStrategy(config.getStrategy());
-        int requestedSlots = Math.max(1, config.getNumSlots());
+        int requestedSlots = "sequential".equals(requestedStrategy)
+                ? 1
+                : Math.max(1, config.getNumSlots());
         String workloadMode = BenchmarkPromptCatalog.normalizeMode(config.getWorkloadMode());
         List<String> prompts = BenchmarkPromptCatalog.buildPrompts(workloadMode, numRequests);
 
+        waitForWorkerIdle();
         redis.set("config:strategy", requestedStrategy);
         redis.set("config:num_slots", String.valueOf(requestedSlots));
 
         RuntimeConfig effectiveConfig = waitForWorkerConfig(requestedStrategy, requestedSlots);
+        clearPromptCaches(prompts);
 
         String benchId = UUID.randomUUID().toString();
         long now = System.currentTimeMillis();
@@ -91,7 +105,7 @@ public class BenchmarkService {
             log.info("Benchmark {} started: {} requests, workload={}, strategy={}, slots={}",
                     benchId, requestIds.size(), workloadMode, strategy, numSlots);
 
-            long deadline = System.currentTimeMillis() + 600_000;
+            long deadline = System.currentTimeMillis() + BENCHMARK_TIMEOUT_MS;
             int lastCompleted = 0;
             boolean finishedAll = false;
 
@@ -233,7 +247,8 @@ public class BenchmarkService {
                 long ageMs = System.currentTimeMillis() - Long.parseLong(heartbeatAt);
                 if (ageMs <= 5_000
                         && strategy.equals(activeStrategy)
-                        && String.valueOf(numSlots).equals(activeSlots)) {
+                        && String.valueOf(numSlots).equals(activeSlots)
+                        && READY_PHASES.contains(phase)) {
                     return new RuntimeConfig(activeStrategy, Integer.parseInt(activeSlots), phase);
                 }
             }
@@ -251,12 +266,76 @@ public class BenchmarkService {
         );
     }
 
+    private void waitForWorkerIdle() {
+        long deadline = System.currentTimeMillis() + WORKER_IDLE_TIMEOUT_MS;
+
+        while (System.currentTimeMillis() < deadline) {
+            String heartbeatAt = redis.get("worker:runtime:heartbeat_at");
+            String phase = redis.getOrDefault("worker:runtime:phase", "UNKNOWN");
+            int activeRequests = parseInt(redis.getOrDefault("worker:runtime:active_requests", "0"), 0);
+            int bufferedMessages = parseInt(redis.getOrDefault("worker:runtime:buffered_messages", "0"), 0);
+            long queueDepth = rabbit != null ? rabbit.getQueueDepth() : -1;
+
+            boolean freshHeartbeat = heartbeatAt != null
+                    && System.currentTimeMillis() - Long.parseLong(heartbeatAt) <= 5_000;
+            boolean idle = activeRequests == 0 && bufferedMessages == 0 && queueDepth == 0;
+
+            if (freshHeartbeat && READY_PHASES.contains(phase) && idle) {
+                return;
+            }
+
+            try {
+                Thread.sleep(250);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Interrupted while waiting for worker to become idle.");
+            }
+        }
+
+        throw new IllegalStateException(
+                "Worker is still draining previous requests. Wait for the Runtime tab to show queue depth, active requests, and buffered messages at zero."
+        );
+    }
+
     private String sanitizeStrategy(String requested) {
         if (requested == null) {
             return "continuous";
         }
         String normalized = requested.trim().toLowerCase();
         return ALLOWED_STRATEGIES.contains(normalized) ? normalized : "continuous";
+    }
+
+    private void clearPromptCaches(List<String> prompts) {
+        String[] keys = prompts.stream()
+                .map(this::cacheKeyForPrompt)
+                .distinct()
+                .toArray(String[]::new);
+
+        if (keys.length > 0) {
+            redis.del(keys);
+        }
+    }
+
+    private String cacheKeyForPrompt(String prompt) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest((MODEL + ":" + prompt).getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder("cache:");
+            for (int i = 0; i < 8; i++) {
+                builder.append(String.format("%02x", hash[i]));
+            }
+            return builder.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available for prompt cache hashing", e);
+        }
+    }
+
+    private int parseInt(String rawValue, int fallback) {
+        try {
+            return Integer.parseInt(rawValue);
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
     }
 
     private record RuntimeConfig(String strategy, int numSlots, String phase) {}

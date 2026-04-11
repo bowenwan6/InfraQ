@@ -90,7 +90,29 @@ public class InferenceService {
         }
 
         // Slow path: PostgreSQL
-        return repo.getRequestById(id);
+        Map<String, Object> row = repo.getRequestById(id);
+        if ("NOT_FOUND".equals(row.get("status"))) {
+            return row;
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("id", row.get("id"));
+        result.put("status", row.get("status"));
+
+        if ("COMPLETED".equals(row.get("status"))) {
+            result.put("result", row.get("output"));
+            result.put("latency_ms", row.get("total_latency_ms"));
+            result.put("queue_wait_ms", row.get("queue_wait_ms"));
+            result.put("inference_ms", row.get("inference_ms"));
+            result.put("cache_hit", Boolean.TRUE.equals(row.get("cache_hit")));
+            if (row.get("model") != null) {
+                result.put("model", row.get("model"));
+            }
+        } else if ("FAILED".equals(row.get("status"))) {
+            result.put("error", row.get("error_message"));
+        }
+
+        return result;
     }
 
     public List<Map<String, Object>> listRecent(int limit) {

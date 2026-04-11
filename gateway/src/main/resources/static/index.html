@@ -158,7 +158,7 @@
                         <strong id="bench-runtime-phase">-</strong>
                     </div>
                     <div class="runtime-card">
-                        <span>Queue Depth</span>
+                        <span>Pending Queue</span>
                         <strong id="bench-runtime-queue">-</strong>
                     </div>
                 </div>
@@ -202,7 +202,10 @@
                     <h3>Recent Runs</h3>
                     <p class="muted-text">Completed, timed out, and failed runs are listed with their effective runtime config.</p>
                 </div>
-                <button id="bench-refresh-btn" class="ghost-btn" type="button">Refresh</button>
+                <div class="inline-actions">
+                    <button id="bench-clear-btn" class="ghost-btn" type="button">Clear Runs</button>
+                    <button id="bench-refresh-btn" class="ghost-btn" type="button">Refresh</button>
+                </div>
             </div>
             <div id="bench-history" class="run-list"></div>
         </section>
@@ -246,7 +249,7 @@
                 <strong class="metric-value" id="m-failed">0</strong>
             </div>
             <div class="metric-card">
-                <span class="metric-label">Queue Depth</span>
+                <span class="metric-label">Pending Queue</span>
                 <strong class="metric-value" id="m-queue">0</strong>
             </div>
             <div class="metric-card">

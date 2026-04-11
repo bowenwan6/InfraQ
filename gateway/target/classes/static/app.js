@@ -21,6 +21,7 @@ document.getElementById("chat-form").addEventListener("submit", submitChat);
 document.getElementById("clear-chat-btn").addEventListener("click", clearChatSession);
 document.getElementById("bench-start-btn").addEventListener("click", runBenchmark);
 document.getElementById("bench-refresh-btn").addEventListener("click", loadBenchmarks);
+document.getElementById("bench-clear-btn").addEventListener("click", clearBenchmarkHistory);
 document.getElementById("runtime-refresh-btn").addEventListener("click", refreshMetrics);
 document.getElementById("bench-strategy").addEventListener("change", () => {
     markBenchmarkFormTouched();
@@ -425,6 +426,7 @@ function startBenchmarkPolling(benchmarkId, totalRequests) {
             document.getElementById("bench-active-config").textContent =
                 `${formatWorkloadMode(run.workload_mode)} | ${run.strategy || "-"} / ${run.num_slots || "-"} slots`;
             document.getElementById("bench-status-text").textContent = benchmarkStatusText(run);
+            refreshMetrics();
 
             if (terminalRunStatuses.has(run.status)) {
                 clearBenchmarkPoller();
@@ -559,6 +561,25 @@ async function loadBenchmarks() {
     }
 }
 
+async function clearBenchmarkHistory() {
+    if (!window.confirm("Clear all completed, failed, and timed out benchmark runs?")) {
+        return;
+    }
+
+    try {
+        const response = await fetch("/api/v1/benchmark", { method: "DELETE" });
+        const payload = await response.json();
+        if (!response.ok) {
+            throw new Error(payload.error || "Could not clear benchmark history.");
+        }
+
+        hideBenchmarkError();
+        await loadBenchmarks();
+    } catch (error) {
+        showBenchmarkError(error.message || "Could not clear benchmark history.");
+    }
+}
+
 function renderComparison(runs) {
     const compareNote = document.getElementById("compare-note");
 
@@ -620,21 +641,22 @@ async function refreshMetrics() {
         const queueDepth = metrics.queue_depth >= 0 ? metrics.queue_depth : "?";
         const activeRequests = Number(metrics.active_requests || 0);
         const bufferedMessages = Number(metrics.buffered_messages || 0);
+        const pendingQueue = formatPendingQueueDepth(metrics.queue_depth, bufferedMessages);
 
         document.getElementById("bench-runtime-desired").textContent = desired;
         document.getElementById("bench-runtime-effective").textContent = effective;
         document.getElementById("bench-runtime-phase").textContent = phase;
-        document.getElementById("bench-runtime-queue").textContent = queueDepth;
+        document.getElementById("bench-runtime-queue").textContent = pendingQueue;
         document.getElementById("bench-runtime-note").textContent =
             desired === effective
-                ? `Worker is ready. Phase: ${phase}. Active: ${activeRequests}. Buffered: ${bufferedMessages}.`
-                : `Worker is still applying the requested runtime config. Queue: ${queueDepth}. Active: ${activeRequests}. Buffered: ${bufferedMessages}.`;
+                ? `Worker is ready. Phase: ${phase}. Broker queue: ${queueDepth}. Buffered: ${bufferedMessages}. Active: ${activeRequests}.`
+                : `Worker is still applying the requested runtime config. Broker queue: ${queueDepth}. Buffered: ${bufferedMessages}. Active: ${activeRequests}.`;
 
         document.getElementById("m-submitted").textContent = metrics.total_submitted || 0;
         document.getElementById("m-completed").textContent = metrics.total_completed || 0;
         document.getElementById("m-cache").textContent = metrics.total_cache_hits || 0;
         document.getElementById("m-failed").textContent = metrics.total_failed || 0;
-        document.getElementById("m-queue").textContent = queueDepth;
+        document.getElementById("m-queue").textContent = pendingQueue;
         document.getElementById("m-desired").textContent = desired;
         document.getElementById("m-effective").textContent = effective;
         document.getElementById("m-phase").textContent = phase;
@@ -727,6 +749,17 @@ function withUnit(value, unit) {
     }
 
     return `${Math.round(value * 100) / 100}${unit}`;
+}
+
+function formatPendingQueueDepth(queueDepth, bufferedMessages) {
+    const brokerQueue = Number(queueDepth);
+    const buffered = Number(bufferedMessages || 0);
+
+    if (!Number.isFinite(brokerQueue) || brokerQueue < 0) {
+        return buffered > 0 ? String(buffered) : "?";
+    }
+
+    return String(brokerQueue + buffered);
 }
 
 function escapeHtml(value) {

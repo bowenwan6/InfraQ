@@ -500,6 +500,12 @@ input[type="number"] {
     gap: 10px;
 }
 
+.inline-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
 .progress-panel progress {
     height: 10px;
     margin-top: 14px;

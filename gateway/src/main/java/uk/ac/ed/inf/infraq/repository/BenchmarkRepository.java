@@ -88,4 +88,35 @@ public class BenchmarkRepository {
             "ORDER BY br.latency_ms ASC", benchmarkId
         );
     }
+
+    public int deleteTerminalRuns() {
+        Integer deletedRunCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM infraq.benchmark_runs WHERE status IN ('COMPLETED', 'FAILED', 'TIMED_OUT')",
+                Integer.class
+        );
+        List<String> requestIds = jdbc.queryForList(
+                "SELECT DISTINCT br.request_id::text " +
+                "FROM infraq.benchmark_requests br " +
+                "JOIN infraq.benchmark_runs runs ON runs.id = br.benchmark_id " +
+                "WHERE runs.status IN ('COMPLETED', 'FAILED', 'TIMED_OUT')",
+                String.class
+        );
+
+        jdbc.update(
+                "DELETE FROM infraq.benchmark_requests " +
+                "WHERE benchmark_id IN (" +
+                "SELECT id FROM infraq.benchmark_runs WHERE status IN ('COMPLETED', 'FAILED', 'TIMED_OUT')" +
+                ")"
+        );
+
+        if (!requestIds.isEmpty()) {
+            for (String requestId : requestIds) {
+                jdbc.update("DELETE FROM infraq.inference_results WHERE request_id = ?::uuid", requestId);
+                jdbc.update("DELETE FROM infraq.inference_requests WHERE id = ?::uuid", requestId);
+            }
+        }
+
+        jdbc.update("DELETE FROM infraq.benchmark_runs WHERE status IN ('COMPLETED', 'FAILED', 'TIMED_OUT')");
+        return deletedRunCount == null ? 0 : deletedRunCount;
+    }
 }

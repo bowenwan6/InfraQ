@@ -217,6 +217,14 @@ public class BenchmarkService {
                 .toList();
     }
 
+    public Map<String, Object> clearHistory() {
+        int deletedRuns = benchRepo.deleteTerminalRuns();
+        return Map.of(
+                "status", "CLEARED",
+                "deleted_runs", deletedRuns
+        );
+    }
+
     private Map<String, Object> decorateRun(Map<String, Object> run) {
         Map<String, Object> decorated = new LinkedHashMap<>(run);
         decorated.put("workload_mode", inferWorkloadMode(run));

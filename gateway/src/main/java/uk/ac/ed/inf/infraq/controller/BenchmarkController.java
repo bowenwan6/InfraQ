@@ -49,4 +49,9 @@ public class BenchmarkController {
     public ResponseEntity<List<Map<String, Object>>> listAll() {
         return ResponseEntity.ok(benchmarkService.listAll());
     }
+
+    @DeleteMapping
+    public ResponseEntity<Map<String, Object>> clearHistory() {
+        return ResponseEntity.ok(benchmarkService.clearHistory());
+    }
 }

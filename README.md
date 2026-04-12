@@ -47,12 +47,12 @@ sequenceDiagram
 
     C->>G: Submit request or start benchmark
     G->>P: Persist request or benchmark metadata
-    G->>R: Write initial status; publish benchmark config when needed
+    G->>R: Write initial status, publish benchmark config when needed
     G->>Q: Enqueue inference work
     G-->>C: Return request ID or benchmark ID
 
     Q-->>W: Deliver queued request
-    W->>R: Read active strategy; update metrics and status
+    W->>R: Read active strategy, update metrics and status
     W->>O: Run inference on cache miss
     O-->>W: Generated response
     W->>R: Write fast status, cache entries, and counters

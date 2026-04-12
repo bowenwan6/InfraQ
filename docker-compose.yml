@@ -38,7 +38,7 @@ services:
       OLLAMA_HOST: http://host.docker.internal:11434
       MODEL: qwen2.5:1.5b
       NUM_CONCURRENT_SLOTS: "4"
-      SCHEDULING_STRATEGY: continuous
+      SCHEDULING_STRATEGY: cached
     restart: unless-stopped
 
   postgres:

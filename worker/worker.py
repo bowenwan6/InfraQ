@@ -32,7 +32,7 @@ REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 MODEL = os.getenv("MODEL", "qwen2.5:1.5b")
 NUM_SLOTS = int(os.getenv("NUM_CONCURRENT_SLOTS", "4"))
-STRATEGY = os.getenv("SCHEDULING_STRATEGY", "continuous")
+STRATEGY = os.getenv("SCHEDULING_STRATEGY", "cached")
 WORKER_ID = os.getenv("HOSTNAME", "worker-1")
 QUEUE_NAME = "inference.requests"
 CACHE_TTL = 3600
@@ -396,7 +396,7 @@ class InferenceWorker:
     def _read_desired_config(self):
         strategy = (self.rdb.get("config:strategy") or STRATEGY).strip().lower()
         if strategy not in ALLOWED_STRATEGIES:
-            strategy = "continuous"
+            strategy = "cached"
 
         try:
             num_slots = max(1, int(self.rdb.get("config:num_slots") or NUM_SLOTS))

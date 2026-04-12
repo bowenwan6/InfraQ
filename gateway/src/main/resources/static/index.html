@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>InfraQ - Local Inference Engine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
@@ -11,9 +14,9 @@
 <header class="app-header">
     <div>
         <h1>InfraQ</h1>
-        <p class="subtitle">MacBook-first local inference engine for queued LLM requests and scheduling experiments.</p>
+        <p class="subtitle">Cache-first local inference studio for queued prompts, runtime switching, and scheduler experiments on Apple hardware.</p>
     </div>
-    <div class="header-pill">Ollama on host + local queueing + benchmark lab</div>
+    <div class="header-pill">Ollama on host + queue orchestration + benchmark observatory</div>
 </header>
 
 <nav class="tabs">
@@ -25,6 +28,31 @@
 <main>
     <section id="tab-chat" class="tab-content active chat-page">
         <div class="chat-shell">
+            <section class="panel hero-panel chat-hero">
+                <div class="hero-grid">
+                    <div class="hero-copy">
+                        <span class="eyebrow">Cache-First Chat</span>
+                        <h2>Talk to the queued runtime, not a direct model socket.</h2>
+                        <p>Chat requests still flow through the same queue and worker as every other inference job, but the default runtime prefers the cache-aware strategy so repeated follow-up prompts can resolve faster.</p>
+                    </div>
+                    <div class="chat-runtime-grid">
+                        <article class="signal-card signal-card-wide">
+                            <span>Default Runtime</span>
+                            <strong id="chat-runtime-mode">cached / 4 slots</strong>
+                            <p id="chat-runtime-copy" class="signal-copy">Cache-aware dispatch is the preferred chat mode when the worker is idle.</p>
+                        </article>
+                        <article class="signal-card">
+                            <span>Worker Phase</span>
+                            <strong id="chat-runtime-phase">-</strong>
+                        </article>
+                        <article class="signal-card">
+                            <span>Pending Queue</span>
+                            <strong id="chat-runtime-queue">-</strong>
+                        </article>
+                    </div>
+                </div>
+            </section>
+
             <div class="section-head">
                 <div>
                     <h2>Chat</h2>
@@ -64,15 +92,24 @@
     </section>
 
     <section id="tab-benchmark" class="tab-content benchmark-page">
-        <div class="section-head">
-            <div>
-                <h2>Benchmark Lab</h2>
-                <p>Select a scheduling strategy, wait for the worker to apply it, then run a controlled workload.</p>
+        <section class="panel hero-panel benchmark-hero">
+            <div class="hero-grid">
+                <div class="hero-copy">
+                    <span class="eyebrow">Benchmark Lab</span>
+                    <h2>Stress the queue, then compare the scheduler.</h2>
+                    <p>Launch controlled workloads, wait for the worker to adopt the requested runtime, and compare latency, throughput, queue wait, and cache behavior side by side.</p>
+                </div>
+                <div class="hero-chip-row">
+                    <span class="hero-chip">Unique load = scheduling only</span>
+                    <span class="hero-chip">Repeated load = cache behavior</span>
+                    <span class="hero-chip">Runtime switches before submission</span>
+                </div>
             </div>
-        </div>
+        </section>
 
         <div class="benchmark-grid">
             <section class="panel run-setup">
+                <div class="panel-kicker">Launch Matrix</div>
                 <h3>Run Setup</h3>
                 <p class="panel-copy">InfraQ applies the selected worker config before benchmark requests are submitted.</p>
 
@@ -111,59 +148,83 @@
                     </label>
                 </div>
 
-                <div class="hint-list">
-                    <div>
-                        <strong>Sequential</strong>
-                        <span>One request at a time. Useful as the baseline.</span>
-                    </div>
-                    <div>
-                        <strong>Static</strong>
-                        <span>Build a batch, run it, then wait for the whole batch to finish.</span>
-                    </div>
-                    <div>
-                        <strong>Continuous</strong>
-                        <span>Keep the worker slots full and refill immediately when one completes.</span>
-                    </div>
-                    <div>
-                        <strong>Cache-Aware</strong>
-                        <span>Continuous dispatch plus prompt-cache short-circuiting.</span>
-                    </div>
-                    <div>
-                        <strong>Unique prompts</strong>
-                        <span>All prompts are distinct. Best for measuring pure scheduling and throughput.</span>
-                    </div>
-                    <div>
-                        <strong>Repeated prompts</strong>
-                        <span>A hot prompt set repeats with periodic fresh prompts mixed in for cache-aware tests.</span>
-                    </div>
+                <div class="selection-deck">
+                    <article class="selection-card accent-card">
+                        <span class="selection-tag">Strategy Focus</span>
+                        <strong id="bench-strategy-title">Continuous Dispatching</strong>
+                        <p id="bench-strategy-copy">Keep worker slots occupied and refill immediately when one request completes.</p>
+                    </article>
+                    <article class="selection-card cool-card">
+                        <span class="selection-tag">Workload Lens</span>
+                        <strong id="bench-workload-title">Unique Prompts</strong>
+                        <p id="bench-workload-copy">Use this mode to isolate queueing and scheduling behavior without cache reuse.</p>
+                    </article>
+                    <article class="selection-card plan-card">
+                        <span class="selection-tag">Run Intent</span>
+                        <strong id="bench-plan-title">Throughput Comparison</strong>
+                        <p id="bench-plan-copy">This setup is best for measuring how the selected scheduler behaves under controlled queued load.</p>
+                    </article>
                 </div>
 
-                <button id="bench-start-btn" type="button">Start Benchmark</button>
-                <p id="bench-launch-note" class="muted-text">The gateway waits until the worker reports the requested runtime config.</p>
+                <div class="benchmark-actions">
+                    <button id="bench-start-btn" type="button">Start Benchmark</button>
+                    <p id="bench-launch-note" class="muted-text">The gateway waits until the worker reports the requested runtime config.</p>
+                </div>
             </section>
 
-            <section class="panel runtime-panel">
-                <h3>Worker Runtime</h3>
-                <div class="runtime-grid">
-                    <div class="runtime-card">
-                        <span>Desired</span>
-                        <strong id="bench-runtime-desired">-</strong>
+            <div class="bench-side-column">
+                <section class="panel runtime-panel">
+                    <div class="panel-kicker">Worker Telemetry</div>
+                    <h3>Runtime State</h3>
+                    <div class="runtime-grid">
+                        <div class="runtime-card">
+                            <span>Desired</span>
+                            <strong id="bench-runtime-desired">-</strong>
+                        </div>
+                        <div class="runtime-card">
+                            <span>Effective</span>
+                            <strong id="bench-runtime-effective">-</strong>
+                        </div>
+                        <div class="runtime-card">
+                            <span>Phase</span>
+                            <strong id="bench-runtime-phase">-</strong>
+                        </div>
+                        <div class="runtime-card">
+                            <span>Pending Queue</span>
+                            <strong id="bench-runtime-queue">-</strong>
+                        </div>
                     </div>
-                    <div class="runtime-card">
-                        <span>Effective</span>
-                        <strong id="bench-runtime-effective">-</strong>
+                    <p id="bench-runtime-note" class="muted-text">Runtime state refreshes automatically while Benchmark Lab is open.</p>
+                </section>
+
+                <section class="panel guide-panel">
+                    <div class="panel-kicker">Operator Notes</div>
+                    <h3>How to read a clean run</h3>
+                    <div class="guide-list">
+                        <article class="guide-item">
+                            <span class="guide-index">01</span>
+                            <div>
+                                <strong>Worker config applies first</strong>
+                                <p>Benchmarks only start submitting requests after the worker reports the requested runtime.</p>
+                            </div>
+                        </article>
+                        <article class="guide-item">
+                            <span class="guide-index">02</span>
+                            <div>
+                                <strong>Use unique prompts for scheduler comparisons</strong>
+                                <p>That removes cache effects and makes queueing behavior easier to compare.</p>
+                            </div>
+                        </article>
+                        <article class="guide-item">
+                            <span class="guide-index">03</span>
+                            <div>
+                                <strong>Use repeated prompts for cache-aware tests</strong>
+                                <p>That is where the `cached` strategy can show actual reuse instead of just behaving like continuous dispatch.</p>
+                            </div>
+                        </article>
                     </div>
-                    <div class="runtime-card">
-                        <span>Phase</span>
-                        <strong id="bench-runtime-phase">-</strong>
-                    </div>
-                    <div class="runtime-card">
-                        <span>Pending Queue</span>
-                        <strong id="bench-runtime-queue">-</strong>
-                    </div>
-                </div>
-                <p id="bench-runtime-note" class="muted-text">Runtime state refreshes automatically while Benchmark Lab is open.</p>
-            </section>
+                </section>
+            </div>
         </div>
 
         <section id="bench-progress-panel" class="panel progress-panel hidden">

@@ -27,7 +27,7 @@ public class MetricsController {
     @GetMapping
     public ResponseEntity<Map<String, Object>> getMetrics() {
         Map<String, Object> metrics = new LinkedHashMap<>();
-        String desiredStrategy = normalizeStrategy(redis.getOrDefault("config:strategy", "continuous"));
+        String desiredStrategy = normalizeStrategy(redis.getOrDefault("config:strategy", "cached"));
         String desiredSlots = normalizeSlots(desiredStrategy, redis.getOrDefault("config:num_slots", "4"));
         String effectiveStrategy = redis.getOrDefault("worker:runtime:strategy", desiredStrategy);
         String effectiveSlots = normalizeSlots(effectiveStrategy, redis.getOrDefault("worker:runtime:num_slots", desiredSlots));
@@ -58,7 +58,7 @@ public class MetricsController {
     @PutMapping("/config")
     public ResponseEntity<Map<String, Object>> updateConfig(@RequestBody Map<String, String> config) {
         String strategy = normalizeStrategy(config.getOrDefault(
-                "strategy", redis.getOrDefault("config:strategy", "continuous")
+                "strategy", redis.getOrDefault("config:strategy", "cached")
         ));
         String numSlots = normalizeSlots(
                 strategy,
@@ -74,10 +74,10 @@ public class MetricsController {
     }
 
     private String normalizeStrategy(String rawStrategy) {
-        String normalized = rawStrategy == null ? "continuous" : rawStrategy.trim().toLowerCase();
+        String normalized = rawStrategy == null ? "cached" : rawStrategy.trim().toLowerCase();
         return Set.of("sequential", "static", "continuous", "cached").contains(normalized)
                 ? normalized
-                : "continuous";
+                : "cached";
     }
 
     private String normalizeSlots(String strategy, String rawSlots) {

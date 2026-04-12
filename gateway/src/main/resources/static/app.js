@@ -4,6 +4,7 @@ const state = {
     pollers: new Map(),
     benchmarkPoller: null,
     benchmarkFormTouched: false,
+    chatDefaultRuntimePending: false,
     latencyChart: null,
     breakdownChart: null,
     compareLatencyChart: null,
@@ -12,6 +13,35 @@ const state = {
 
 const terminalRunStatuses = new Set(["COMPLETED", "FAILED", "TIMED_OUT"]);
 const promptInput = document.getElementById("prompt");
+const CHAT_DEFAULT_CONFIG = Object.freeze({ strategy: "cached", numSlots: 4 });
+const BENCHMARK_STRATEGY_GUIDE = {
+    sequential: {
+        title: "Sequential Baseline",
+        copy: "Run one request at a time to measure the floor for queue wait, tail latency, and throughput."
+    },
+    static: {
+        title: "Static Batching",
+        copy: "Collect a fixed batch, dispatch it together, then wait for the whole batch to clear before the next wave."
+    },
+    continuous: {
+        title: "Continuous Dispatching",
+        copy: "Keep the worker slots occupied and refill immediately when one request completes."
+    },
+    cached: {
+        title: "Cache-Aware Dispatch",
+        copy: "Check Redis before taking a slot so repeated prompts can bypass Ollama on cache hits."
+    }
+};
+const BENCHMARK_WORKLOAD_GUIDE = {
+    unique: {
+        title: "Unique Prompts",
+        copy: "Use this mode to isolate scheduler and queue behavior without prompt reuse."
+    },
+    repeated: {
+        title: "Repeated Prompts",
+        copy: "Use this mode to test how much work the cache-aware path can skip under controlled repetition."
+    }
+};
 
 document.querySelectorAll(".tab-btn").forEach((button) => {
     button.addEventListener("click", () => openTab(button.dataset.tab));
@@ -27,7 +57,14 @@ document.getElementById("bench-strategy").addEventListener("change", () => {
     markBenchmarkFormTouched();
     syncStrategyDependentControls();
 });
-document.getElementById("bench-slots").addEventListener("change", markBenchmarkFormTouched);
+document.getElementById("bench-workload").addEventListener("change", () => {
+    markBenchmarkFormTouched();
+    syncStrategyDependentControls();
+});
+document.getElementById("bench-slots").addEventListener("change", () => {
+    markBenchmarkFormTouched();
+    syncStrategyDependentControls();
+});
 promptInput.addEventListener("input", resizePromptInput);
 promptInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
@@ -48,6 +85,7 @@ function openTab(tabName) {
     if (tabName === "chat") {
         loadChatHistory();
         scrollChatToBottom();
+        refreshMetrics();
     }
 
     if (tabName === "benchmark") {
@@ -333,6 +371,7 @@ function syncBenchmarkForm(metrics) {
 
 function syncStrategyDependentControls() {
     const strategy = document.getElementById("bench-strategy").value;
+    const workload = document.getElementById("bench-workload").value;
     const slotsInput = document.getElementById("bench-slots");
     const launchNote = document.getElementById("bench-launch-note");
 
@@ -341,12 +380,23 @@ function syncStrategyDependentControls() {
         slotsInput.disabled = true;
         launchNote.textContent =
             "Sequential is the baseline mode and always runs with exactly 1 active slot.";
+        renderBenchmarkSetupNarrative();
         return;
     }
 
     slotsInput.disabled = false;
-    launchNote.textContent =
-        "The gateway waits until the worker reports the requested runtime config.";
+    if (strategy === "cached" && workload === "unique") {
+        launchNote.textContent =
+            "Cached on a unique workload behaves mostly like continuous dispatch because prompt reuse stays near zero.";
+    } else if (strategy === "cached" && workload === "repeated") {
+        launchNote.textContent =
+            "Repeated prompts are where cache-aware dispatch should show real reuse and queue-wait reduction.";
+    } else {
+        launchNote.textContent =
+            "The gateway waits until the worker reports the requested runtime config.";
+    }
+
+    renderBenchmarkSetupNarrative();
 }
 
 function resizePromptInput() {
@@ -504,7 +554,8 @@ function renderRunCharts(requests) {
             datasets: [{
                 label: "Latency (ms)",
                 data: latencies,
-                backgroundColor: requests.map((request) => request.cache_hit ? "#4fd19b" : "#f28c38")
+                backgroundColor: requests.map((request) => request.cache_hit ? "#80f5b3" : "#ff8a3d"),
+                borderRadius: 10
             }]
         },
         options: chartOptions("Per-request latency", "Latency (ms)", false)
@@ -519,8 +570,8 @@ function renderRunCharts(requests) {
         data: {
             labels,
             datasets: [
-                { label: "Queue wait", data: queueWaits, backgroundColor: "#65a9ff" },
-                { label: "Inference", data: inferenceTimes, backgroundColor: "#f28c38" }
+                { label: "Queue wait", data: queueWaits, backgroundColor: "#76e7ff", borderRadius: 10 },
+                { label: "Inference", data: inferenceTimes, backgroundColor: "#ff8a3d", borderRadius: 10 }
             ]
         },
         options: chartOptions("Queue vs inference time", "Time (ms)", true)
@@ -540,16 +591,31 @@ async function loadBenchmarks() {
         }
 
         container.innerHTML = runs.map((run) => `
-            <article class="run-item">
-                <div>
-                    <span class="badge ${statusClass(run.status)}">${escapeHtml(run.status)}</span>
-                    <strong>${escapeHtml(run.label || `${run.strategy} / ${run.num_slots} slots`)}</strong>
-                    <p>${escapeHtml(formatWorkloadMode(run.workload_mode) + " | " + (run.total_requests || 0) + " requests")}</p>
+            <article class="run-item ${escapeHtml(statusClass(run.status))}">
+                <div class="run-item-top">
+                    <div class="run-item-title">
+                        <span class="badge ${statusClass(run.status)}">${escapeHtml(run.status)}</span>
+                        <strong>${escapeHtml(run.label || `${run.strategy} / ${run.num_slots} slots`)}</strong>
+                        <p>${escapeHtml(formatWorkloadMode(run.workload_mode) + " | " + (run.total_requests || 0) + " requests")}</p>
+                    </div>
+                    <div class="run-item-kpis">
+                        <div class="run-kpi">
+                            <span>Avg</span>
+                            <strong>${escapeHtml(withUnit(run.avg_latency_ms, " ms"))}</strong>
+                        </div>
+                        <div class="run-kpi">
+                            <span>Tput</span>
+                            <strong>${escapeHtml(withUnit(run.throughput_rps, " req/s"))}</strong>
+                        </div>
+                        <div class="run-kpi">
+                            <span>Cache</span>
+                            <strong>${escapeHtml(withUnit((run.cache_hit_rate || 0) * 100, "%"))}</strong>
+                        </div>
+                    </div>
                 </div>
-                <div class="run-item-meta">
-                    <span>${escapeHtml(withUnit(run.avg_latency_ms, " ms avg"))}</span>
-                    <span>${escapeHtml(withUnit(run.throughput_rps, " req/s"))}</span>
-                    <span>${escapeHtml(withUnit((run.cache_hit_rate || 0) * 100, "% cache"))}</span>
+                <div class="run-item-footer">
+                    <span class="run-chip">${escapeHtml(`${run.strategy || "-"} / ${run.num_slots || "-"} slots`)}</span>
+                    <span class="run-chip">${escapeHtml(`effective ${run.effective_strategy || run.strategy || "-"} / ${run.effective_slots || run.num_slots || "-"}`)}</span>
                 </div>
             </article>
         `).join("");
@@ -607,9 +673,9 @@ function renderComparison(runs) {
         data: {
             labels,
             datasets: [
-                { label: "P50", data: runs.map((run) => run.p50_latency_ms || 0), backgroundColor: "#65a9ff" },
-                { label: "P95", data: runs.map((run) => run.p95_latency_ms || 0), backgroundColor: "#f2c35b" },
-                { label: "P99", data: runs.map((run) => run.p99_latency_ms || 0), backgroundColor: "#ff7b7b" }
+                { label: "P50", data: runs.map((run) => run.p50_latency_ms || 0), backgroundColor: "#76e7ff" },
+                { label: "P95", data: runs.map((run) => run.p95_latency_ms || 0), backgroundColor: "#ffd56b" },
+                { label: "P99", data: runs.map((run) => run.p99_latency_ms || 0), backgroundColor: "#fe6f9d" }
             ]
         },
         options: chartOptions("Latency comparison", "Latency (ms)", false)
@@ -622,7 +688,8 @@ function renderComparison(runs) {
             datasets: [{
                 label: "Throughput",
                 data: runs.map((run) => run.throughput_rps || 0),
-                backgroundColor: "#f28c38"
+                backgroundColor: "#ff8a3d",
+                borderRadius: 10
             }]
         },
         options: chartOptions("Throughput comparison", "Requests / sec", false)
@@ -647,6 +714,10 @@ async function refreshMetrics() {
         document.getElementById("bench-runtime-effective").textContent = effective;
         document.getElementById("bench-runtime-phase").textContent = phase;
         document.getElementById("bench-runtime-queue").textContent = pendingQueue;
+        document.getElementById("chat-runtime-mode").textContent = desired === effective ? effective : `${desired} -> ${effective}`;
+        document.getElementById("chat-runtime-phase").textContent = phase;
+        document.getElementById("chat-runtime-queue").textContent = pendingQueue;
+        document.getElementById("chat-runtime-copy").textContent = chatRuntimeCopy(desired, effective, phase);
         document.getElementById("bench-runtime-note").textContent =
             desired === effective
                 ? `Worker is ready. Phase: ${phase}. Broker queue: ${queueDepth}. Buffered: ${bufferedMessages}. Active: ${activeRequests}.`
@@ -660,6 +731,8 @@ async function refreshMetrics() {
         document.getElementById("m-desired").textContent = desired;
         document.getElementById("m-effective").textContent = effective;
         document.getElementById("m-phase").textContent = phase;
+
+        ensureChatDefaultRuntime(metrics);
     } catch (error) {
         // Keep the last rendered values if the gateway is temporarily unavailable.
     }
@@ -671,29 +744,29 @@ function chartOptions(title, yAxisLabel, stacked) {
         maintainAspectRatio: false,
         plugins: {
             legend: {
-                labels: { color: "#eef2f4" }
+                labels: { color: "#f2fbff" }
             },
             title: {
                 display: true,
                 text: title,
-                color: "#eef2f4"
+                color: "#f2fbff"
             }
         },
         scales: {
             x: {
                 stacked,
-                ticks: { color: "#94a0aa" },
-                grid: { color: "rgba(255,255,255,0.06)" }
+                ticks: { color: "#8ba7b7" },
+                grid: { color: "rgba(118,231,255,0.08)" }
             },
             y: {
                 stacked,
                 title: {
                     display: true,
                     text: yAxisLabel,
-                    color: "#94a0aa"
+                    color: "#8ba7b7"
                 },
-                ticks: { color: "#94a0aa" },
-                grid: { color: "rgba(255,255,255,0.06)" }
+                ticks: { color: "#8ba7b7" },
+                grid: { color: "rgba(118,231,255,0.08)" }
             }
         }
     };
@@ -762,6 +835,108 @@ function formatPendingQueueDepth(queueDepth, bufferedMessages) {
     return String(brokerQueue + buffered);
 }
 
+function renderBenchmarkSetupNarrative() {
+    const strategy = document.getElementById("bench-strategy").value;
+    const workload = document.getElementById("bench-workload").value;
+    const slots = document.getElementById("bench-strategy").value === "sequential"
+        ? "1"
+        : document.getElementById("bench-slots").value;
+    const strategyGuide = BENCHMARK_STRATEGY_GUIDE[strategy] || BENCHMARK_STRATEGY_GUIDE.continuous;
+    const workloadGuide = BENCHMARK_WORKLOAD_GUIDE[workload] || BENCHMARK_WORKLOAD_GUIDE.unique;
+
+    document.getElementById("bench-strategy-title").textContent = strategyGuide.title;
+    document.getElementById("bench-strategy-copy").textContent = strategyGuide.copy;
+    document.getElementById("bench-workload-title").textContent = workloadGuide.title;
+    document.getElementById("bench-workload-copy").textContent = workloadGuide.copy;
+
+    if (strategy === "cached" && workload === "repeated") {
+        document.getElementById("bench-plan-title").textContent = "Cache Efficiency Run";
+        document.getElementById("bench-plan-copy").textContent =
+            `This setup is tuned to show whether repeated prompts can bypass inference work with ${slots} active slots.`;
+        return;
+    }
+
+    if (strategy === "cached" && workload === "unique") {
+        document.getElementById("bench-plan-title").textContent = "Cold-Cache Control";
+        document.getElementById("bench-plan-copy").textContent =
+            `Because prompts are unique, this run mostly behaves like continuous dispatch and should keep cache hits near zero at ${slots} slots.`;
+        return;
+    }
+
+    if (strategy === "static") {
+        document.getElementById("bench-plan-title").textContent = "Batch Boundary Test";
+        document.getElementById("bench-plan-copy").textContent =
+            `This run highlights how much latency is created by waiting for an entire ${slots}-slot batch to finish before refilling.`;
+        return;
+    }
+
+    if (strategy === "sequential") {
+        document.getElementById("bench-plan-title").textContent = "Baseline Floor";
+        document.getElementById("bench-plan-copy").textContent =
+            "This run measures the single-slot baseline with no concurrency and no batching effects.";
+        return;
+    }
+
+    document.getElementById("bench-plan-title").textContent = "Throughput Comparison";
+    document.getElementById("bench-plan-copy").textContent =
+        `This run keeps ${slots} slots active and is best for comparing queue refill efficiency under controlled load.`;
+}
+
+function chatRuntimeCopy(desired, effective, phase) {
+    if (desired === "cached / 4 slots" && effective === desired) {
+        return "Cache-aware dispatch is active for chat requests and follow-up prompts.";
+    }
+
+    if (desired === "cached / 4 slots" && effective !== desired) {
+        return `Chat is steering the worker toward cached / 4 slots. Current phase: ${phase}.`;
+    }
+
+    return "Chat prefers cached / 4 slots when the worker is idle.";
+}
+
+async function ensureChatDefaultRuntime(metrics) {
+    const chatOpen = document.getElementById("tab-chat").classList.contains("active");
+
+    if (!chatOpen || state.chatDefaultRuntimePending || state.benchmarkPoller) {
+        return;
+    }
+
+    const desiredStrategy = String(metrics.desired_strategy || "");
+    const desiredSlots = String(metrics.desired_slots || "");
+    const phase = String(metrics.worker_phase || "").toUpperCase();
+
+    if (desiredStrategy === CHAT_DEFAULT_CONFIG.strategy && desiredSlots === String(CHAT_DEFAULT_CONFIG.numSlots)) {
+        return;
+    }
+
+    if (phase === "RUNNING") {
+        return;
+    }
+
+    state.chatDefaultRuntimePending = true;
+
+    try {
+        const response = await fetch("/api/v1/metrics/config", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                strategy: CHAT_DEFAULT_CONFIG.strategy,
+                num_slots: String(CHAT_DEFAULT_CONFIG.numSlots)
+            })
+        });
+
+        if (response.ok) {
+            setTimeout(() => {
+                refreshMetrics();
+            }, 150);
+        }
+    } catch (error) {
+        // Leave the current runtime untouched if the config endpoint is unavailable.
+    } finally {
+        state.chatDefaultRuntimePending = false;
+    }
+}
+
 function escapeHtml(value) {
     const container = document.createElement("div");
     container.textContent = value == null ? "" : String(value);
@@ -769,10 +944,11 @@ function escapeHtml(value) {
 }
 
 setInterval(() => {
+    const chatOpen = document.getElementById("tab-chat").classList.contains("active");
     const benchmarkOpen = document.getElementById("tab-benchmark").classList.contains("active");
     const runtimeOpen = document.getElementById("tab-runtime").classList.contains("active");
 
-    if (benchmarkOpen || runtimeOpen) {
+    if (chatOpen || benchmarkOpen || runtimeOpen) {
         refreshMetrics();
     }
 }, 2000);

@@ -2,7 +2,7 @@
 
 # InfraQ
 
-**A MacBook-first local inference engine for running, queueing, and benchmarking LLM workloads on macOS.**
+**A scheduling gateway for shared local LLM inference on macOS.**
 
 <p>
   <img alt="platform" src="https://img.shields.io/badge/platform-macOS-black?logo=apple">
@@ -14,9 +14,9 @@
 
 </div>
 
-InfraQ is a lightweight inference gateway designed for **MacBook-based local LLM serving**. It keeps the model runtime on the **host machine** so Ollama can use **Apple Metal acceleration**, while the gateway, worker, Redis, RabbitMQ, and PostgreSQL run in containers.
+InfraQ is a lightweight inference gateway designed for **shared local LLM serving on Apple hardware**. It keeps Ollama on the **host machine** so macOS can use **Metal acceleration**, while the gateway, worker, Redis, RabbitMQ, and PostgreSQL run in containers.
 
-The project is built around one practical goal: **compare inference scheduling strategies under a realistic queued workload** without standing up a large distributed serving stack.
+The project is built around one research goal: **compare request scheduling strategies under a realistic queued workload** without building a full GPU-serving stack. InfraQ implements four worker modes, hot-switches them at runtime, and includes a benchmark framework that can run repeatable experiments end to end.
 
 ## Maintainer
 
@@ -27,7 +27,9 @@ The project is built around one practical goal: **compare inference scheduling s
 - **MacBook-first**: Ollama runs natively on macOS instead of inside Docker, which is the right tradeoff for Apple GPU access.
 - **Asynchronous by default**: requests are accepted immediately, queued through RabbitMQ, and processed by a worker.
 - **Fast + durable state**: Redis serves low-latency status polling; PostgreSQL keeps a durable record of requests and benchmark runs.
-- **Benchmark-oriented**: includes multiple scheduling modes inspired by vLLM and SGLang for side-by-side comparison.
+- **Research-oriented**: approximates continuous batching and prefix caching at the infrastructure layer so the strategies can be compared on consumer Apple hardware.
+- **Hot-switchable runtime**: the worker can drain in-flight work, adopt a new strategy, and continue without container restarts.
+- **Repeatable benchmarks**: the benchmark launcher handles worker-idle checks, runtime config application, cache clearing, request submission, and result capture for side-by-side experiments.
 - **Built-in dashboard**: ships with a browser UI for submission, metrics, and benchmark visualization.
 
 ## Architecture
@@ -44,6 +46,15 @@ flowchart LR
     W --> PG
 ```
 
+The gateway returns immediately, writes request state to PostgreSQL and Redis, and enqueues work in RabbitMQ. The worker consumes from RabbitMQ, applies the active scheduling strategy, and talks to Ollama through `host.docker.internal`.
+
+Redis is used for four separate jobs:
+
+- Request status fast-path for the browser UI
+- Prompt-result cache for the `cached` strategy
+- Live worker metrics and counters
+- Runtime configuration shared between gateway and worker
+
 ## Core Features
 
 ### Inference flow
@@ -59,9 +70,9 @@ InfraQ currently includes four worker modes:
 | Strategy | What it does | Best use |
 | --- | --- | --- |
 | `sequential` | One request at a time | Baseline / control |
-| `static` | Collect a fixed batch, process together, then wait for all to finish | Simple batching experiments |
-| `continuous` | Keep a fixed number of active slots and refill immediately | Throughput-oriented testing |
-| `cached` | Continuous scheduling plus prompt-cache short-circuiting | Repeated-prompt workloads |
+| `static` | Collect a fixed batch, dispatch it together, then wait for the whole batch to finish | Simple batching experiments |
+| `continuous` | Keep a fixed number of active slots and refill each slot immediately on completion | Throughput-oriented testing |
+| `cached` | Check a Redis cache before slot acquisition; cache misses fall through to `continuous` | Repeated-prompt workloads |
 
 ### Benchmark workloads
 
@@ -69,8 +80,8 @@ InfraQ supports two benchmark prompt mixes:
 
 | Workload | What it measures | Cache behavior |
 | --- | --- | --- |
-| `unique` | Pure scheduling and throughput under non-repeating prompts | Should stay near `0%` cache hits when the run starts cold |
-| `repeated` | Cache-aware behavior with a hot prompt set plus some fresh prompts | Produces some cache hits, but is intentionally not `100%` duplicate |
+| `unique` | Pure scheduling and queueing behavior under non-repeating prompts | Should stay at or near `0%` cache hits when the run starts cold |
+| `repeated` | Cache-aware behavior when a fixed prompt set is reused | Produces partial, not perfect, cache reuse so strategies can still be compared under load |
 
 ### Dashboard
 
@@ -79,6 +90,7 @@ The web UI includes:
 - **Chat**: send prompts and poll for completion in a chat-style interface
 - **Benchmark Lab**: choose scheduling strategy, workload mix, request count, and compare runs
 - **Runtime**: see queue depth, completions, cache hits, and effective worker config
+- **Recent Runs management**: clear finished benchmark history without touching active runs
 
 ## Tech Stack
 
@@ -184,6 +196,42 @@ Recommended usage:
 > Note
 > Benchmark runs clear the prompt-cache entries for the prompts in that run before submission. This avoids cross-run cache contamination and makes workload comparisons more meaningful.
 
+## Evaluation Summary
+
+The report-backed benchmark matrix in this repository ran on a **MacBook Air M1 (8 GB)** using **Ollama + `qwen2.5:1.5b`**, with **100 requests per run** and **5 repeats per condition**.
+
+- On the `unique` workload, scheduling improvements were real but modest. `continuous_8` delivered the best non-cache result at `180 s` average latency and `0.219 req/s`, versus `188 s` and `0.213 req/s` for `sequential_1`.
+- On the `repeated` workload, caching was the dominant optimization. `cached_4` reached `0.961 req/s` with a `71%` cache hit rate, cutting average latency from roughly `299 s` to `73 s` relative to non-cached 4-slot runs.
+- The slot-count ablation showed that `cached_4` outperformed `cached_8` (`0.961 req/s` vs `0.699 req/s`). More concurrency created more simultaneous misses before the cache warmed, so higher slot counts were not automatically better.
+- Across all 45 runs in the report matrix, every run completed successfully.
+
+The corresponding artifacts are included in the repository:
+
+- [Report source](./report/cw3_explanation.tex)
+- [Benchmark manifest](./experiment_results/report_matrix_20260411T224526Z/manifest.json)
+- [Benchmark summary](./experiment_results/report_matrix_20260411T224526Z/summary.csv)
+
+## Reproducing the Report Experiments
+
+With the stack running and Ollama available on the host, the full report matrix can be launched with:
+
+```bash
+python3 scripts/run_report_benchmarks.py
+```
+
+The script records:
+
+- `manifest.json`: experiment plan and environment metadata
+- `summary.csv`: one row per completed run for quick analysis
+- `runs/*.json`: raw per-run data including launch response, progress events, final result, and metric snapshots
+- `state.json`: resumable progress for long-running experiment batches
+
+The current report matrix covers:
+
+- `Experiment A`: `unique / 100 / 5 repeats` for `sequential_1`, `static_8`, `continuous_8`, `cached_8`
+- `Experiment B`: `repeated / 100 / 5 repeats` for `sequential_1`, `static_4`, `continuous_4`, `cached_4`
+- `Ablation`: `repeated / 100 / 5 repeats` for `cached_8`
+
 ## Configuration
 
 Most runtime configuration is handled through environment variables in [`docker-compose.yml`](./docker-compose.yml).
@@ -228,6 +276,7 @@ python3 worker.py
 | `POST` | `/api/v1/benchmark` | Start a benchmark run |
 | `GET` | `/api/v1/benchmark/{id}` | Fetch benchmark results |
 | `GET` | `/api/v1/benchmark` | List benchmark history |
+| `DELETE` | `/api/v1/benchmark` | Clear finished benchmark history |
 | `GET` | `/api/v1/metrics` | Read live counters and queue depth |
 | `PUT` | `/api/v1/metrics/config` | Update runtime config stored in Redis |
 
@@ -236,7 +285,10 @@ python3 worker.py
 ```text
 .
 ├── gateway/          # Spring Boot API + dashboard
+├── report/           # Coursework report and methodology write-up
+├── scripts/          # Benchmark automation scripts
 ├── worker/           # Python async worker that talks to Ollama
+├── experiment_results/
 ├── docker-compose.yml
 └── init-db.sql       # PostgreSQL schema
 ```
@@ -250,7 +302,9 @@ InfraQ is a strong local prototype, but it is not a production serving stack yet
 - Ollama inference is **non-streaming** in the current implementation.
 - Default database and broker credentials are for **local development only**.
 - Benchmark control is **single-run oriented**; concurrent benchmark runs should be avoided.
+- The `cached` strategy is a **text-result cache**, not true GPU KV-cache reuse.
 - The worker-level cache is **global per model + prompt**, so non-benchmark traffic can still influence ad hoc performance outside controlled experiments.
+- On unique workloads, throughput remains bounded by the underlying Ollama token generation rate; scheduling can reduce queue wait, but it cannot create extra model capacity.
 
 ## Validation
 
@@ -258,6 +312,7 @@ The current repository has been minimally validated with:
 
 - `cd gateway && ./mvnw test`
 - `cd worker && python3 -m py_compile worker.py`
+- `node --check gateway/src/main/resources/static/app.js`
 - `docker compose config -q`
 
 ## License

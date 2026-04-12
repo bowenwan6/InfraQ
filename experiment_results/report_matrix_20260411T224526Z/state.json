@@ -1,0 +1,231 @@
+{
+  "created_at_utc": "2026-04-11T22:45:45.918172+00:00",
+  "updated_at_utc": "2026-04-12T04:14:36.120502+00:00",
+  "completed_runs": {
+    "001_experiment_a_unique_sequential_1slots_r01": {
+      "benchmark_id": "fe56de58-8877-4a72-8c7e-12e6a6b4fe38",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/001_experiment_a_unique_sequential_1slots_r01.json"
+    },
+    "002_experiment_a_unique_static_8slots_r01": {
+      "benchmark_id": "b977a717-1150-460b-8745-829da980a6b1",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/002_experiment_a_unique_static_8slots_r01.json"
+    },
+    "003_experiment_a_unique_continuous_8slots_r01": {
+      "benchmark_id": "04e2d916-95b4-4f69-8a00-a392d26e26d4",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/003_experiment_a_unique_continuous_8slots_r01.json"
+    },
+    "004_experiment_a_unique_cached_8slots_r01": {
+      "benchmark_id": "a3f6b9e0-533d-4b42-aaf8-c8e1d3a18d0c",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/004_experiment_a_unique_cached_8slots_r01.json"
+    },
+    "005_experiment_a_unique_sequential_1slots_r02": {
+      "benchmark_id": "e5dde3fb-cd0e-4b57-a788-146ba21b8d22",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/005_experiment_a_unique_sequential_1slots_r02.json"
+    },
+    "006_experiment_a_unique_static_8slots_r02": {
+      "benchmark_id": "641e0e1a-4b4f-4d08-b9be-5b1a83255a8e",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/006_experiment_a_unique_static_8slots_r02.json"
+    },
+    "007_experiment_a_unique_continuous_8slots_r02": {
+      "benchmark_id": "7a64f50a-a85c-4f06-a627-ddea7d057e40",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/007_experiment_a_unique_continuous_8slots_r02.json"
+    },
+    "008_experiment_a_unique_cached_8slots_r02": {
+      "benchmark_id": "22e8ebca-ba0e-483f-b9c0-786721137fcb",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/008_experiment_a_unique_cached_8slots_r02.json"
+    },
+    "009_experiment_a_unique_sequential_1slots_r03": {
+      "benchmark_id": "715db100-4835-4acf-9870-4c0d02b18ad3",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/009_experiment_a_unique_sequential_1slots_r03.json"
+    },
+    "010_experiment_a_unique_static_8slots_r03": {
+      "benchmark_id": "41f8417c-2d2d-47b0-97b2-351fb09c2d3a",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/010_experiment_a_unique_static_8slots_r03.json"
+    },
+    "011_experiment_a_unique_continuous_8slots_r03": {
+      "benchmark_id": "16270378-ac92-44b1-a6d9-2c3f7b05dea8",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/011_experiment_a_unique_continuous_8slots_r03.json"
+    },
+    "012_experiment_a_unique_cached_8slots_r03": {
+      "benchmark_id": "80c53b9c-0a49-4db3-a6a7-da9053d468fe",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/012_experiment_a_unique_cached_8slots_r03.json"
+    },
+    "013_experiment_a_unique_sequential_1slots_r04": {
+      "benchmark_id": "cfc607ed-6aa4-4090-ab85-1ab18e2d0f8f",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/013_experiment_a_unique_sequential_1slots_r04.json"
+    },
+    "014_experiment_a_unique_static_8slots_r04": {
+      "benchmark_id": "50b464c0-dc64-48e7-be70-5debce490206",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/014_experiment_a_unique_static_8slots_r04.json"
+    },
+    "015_experiment_a_unique_continuous_8slots_r04": {
+      "benchmark_id": "fe02d05c-8b3c-4c57-ab8d-20941bb58ff1",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/015_experiment_a_unique_continuous_8slots_r04.json"
+    },
+    "016_experiment_a_unique_cached_8slots_r04": {
+      "benchmark_id": "e6d76d62-9e10-4ceb-9c0b-d27e3477447b",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/016_experiment_a_unique_cached_8slots_r04.json"
+    },
+    "017_experiment_a_unique_sequential_1slots_r05": {
+      "benchmark_id": "fe584da0-90af-4505-aa29-3b9e45928dd7",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/017_experiment_a_unique_sequential_1slots_r05.json"
+    },
+    "018_experiment_a_unique_static_8slots_r05": {
+      "benchmark_id": "577b6000-6a0a-4b1f-a571-0a71b8a264c7",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/018_experiment_a_unique_static_8slots_r05.json"
+    },
+    "019_experiment_a_unique_continuous_8slots_r05": {
+      "benchmark_id": "447a5154-fe3d-4185-841e-71120fc7adff",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/019_experiment_a_unique_continuous_8slots_r05.json"
+    },
+    "020_experiment_a_unique_cached_8slots_r05": {
+      "benchmark_id": "d326039b-3121-46bf-b05a-e2be087a2971",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/020_experiment_a_unique_cached_8slots_r05.json"
+    },
+    "021_experiment_b_repeated_sequential_1slots_r01": {
+      "benchmark_id": "beecfaa2-4e39-405d-88f8-ada666eefd3d",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/021_experiment_b_repeated_sequential_1slots_r01.json"
+    },
+    "022_experiment_b_repeated_static_4slots_r01": {
+      "benchmark_id": "a5787e75-f93b-4cc0-87e7-df006d14254f",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/022_experiment_b_repeated_static_4slots_r01.json"
+    },
+    "023_experiment_b_repeated_continuous_4slots_r01": {
+      "benchmark_id": "6cc42f17-8347-4ccd-88d6-3fd28b39ae5e",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/023_experiment_b_repeated_continuous_4slots_r01.json"
+    },
+    "024_experiment_b_repeated_cached_4slots_r01": {
+      "benchmark_id": "23f30722-1ba1-42e6-afad-7456ad5b4e14",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/024_experiment_b_repeated_cached_4slots_r01.json"
+    },
+    "025_experiment_b_repeated_sequential_1slots_r02": {
+      "benchmark_id": "400bc846-54a8-42b9-9a23-1881d61601c9",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/025_experiment_b_repeated_sequential_1slots_r02.json"
+    },
+    "026_experiment_b_repeated_static_4slots_r02": {
+      "benchmark_id": "7b0a18d3-c8db-40ee-a9ad-cd1b0e687419",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/026_experiment_b_repeated_static_4slots_r02.json"
+    },
+    "027_experiment_b_repeated_continuous_4slots_r02": {
+      "benchmark_id": "c0215f5b-c911-4cd3-9c76-9bc46a8bd58f",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/027_experiment_b_repeated_continuous_4slots_r02.json"
+    },
+    "028_experiment_b_repeated_cached_4slots_r02": {
+      "benchmark_id": "dbb666fe-9f4a-44c7-9a04-a398ce355487",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/028_experiment_b_repeated_cached_4slots_r02.json"
+    },
+    "029_experiment_b_repeated_sequential_1slots_r03": {
+      "benchmark_id": "710c647e-9777-43cd-8c53-2f3210d4773a",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/029_experiment_b_repeated_sequential_1slots_r03.json"
+    },
+    "030_experiment_b_repeated_static_4slots_r03": {
+      "benchmark_id": "e93ddcb4-86b0-427f-9885-689d9b8229bf",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/030_experiment_b_repeated_static_4slots_r03.json"
+    },
+    "031_experiment_b_repeated_continuous_4slots_r03": {
+      "benchmark_id": "13396713-b95c-42a5-bf12-a3e16c4fbffe",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/031_experiment_b_repeated_continuous_4slots_r03.json"
+    },
+    "032_experiment_b_repeated_cached_4slots_r03": {
+      "benchmark_id": "8792b77a-5c47-47f7-9c76-e634201c0477",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/032_experiment_b_repeated_cached_4slots_r03.json"
+    },
+    "033_experiment_b_repeated_sequential_1slots_r04": {
+      "benchmark_id": "3e0d36a7-0190-458e-99ee-20a77dd89e04",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/033_experiment_b_repeated_sequential_1slots_r04.json"
+    },
+    "034_experiment_b_repeated_static_4slots_r04": {
+      "benchmark_id": "ffaf9a73-cfce-42d7-9284-6be276e8d75b",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/034_experiment_b_repeated_static_4slots_r04.json"
+    },
+    "035_experiment_b_repeated_continuous_4slots_r04": {
+      "benchmark_id": "7b59b216-0813-4739-9395-0f8a61994116",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/035_experiment_b_repeated_continuous_4slots_r04.json"
+    },
+    "036_experiment_b_repeated_cached_4slots_r04": {
+      "benchmark_id": "8adbd653-d20f-4b64-b6d8-123bc3ea33e1",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/036_experiment_b_repeated_cached_4slots_r04.json"
+    },
+    "037_experiment_b_repeated_sequential_1slots_r05": {
+      "benchmark_id": "df28f1d4-a802-4ed3-b0b6-917689776ba1",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/037_experiment_b_repeated_sequential_1slots_r05.json"
+    },
+    "038_experiment_b_repeated_static_4slots_r05": {
+      "benchmark_id": "df39cce3-9309-4176-b24a-1e16a51c9430",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/038_experiment_b_repeated_static_4slots_r05.json"
+    },
+    "039_experiment_b_repeated_continuous_4slots_r05": {
+      "benchmark_id": "0f542e28-6d1e-45c4-87b3-73db6ead66be",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/039_experiment_b_repeated_continuous_4slots_r05.json"
+    },
+    "040_experiment_b_repeated_cached_4slots_r05": {
+      "benchmark_id": "356b88ca-a085-40a0-b4a0-3e07ce912234",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/040_experiment_b_repeated_cached_4slots_r05.json"
+    },
+    "041_ablation_cached_8_repeated_cached_8slots_r01": {
+      "benchmark_id": "ade5268e-d691-4ada-9636-9ebd4868cba4",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/041_ablation_cached_8_repeated_cached_8slots_r01.json"
+    },
+    "042_ablation_cached_8_repeated_cached_8slots_r02": {
+      "benchmark_id": "55228bd9-3518-4ab0-9b76-eae110fced69",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/042_ablation_cached_8_repeated_cached_8slots_r02.json"
+    },
+    "043_ablation_cached_8_repeated_cached_8slots_r03": {
+      "benchmark_id": "354130d0-3c6d-4b69-879c-4e2008360078",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/043_ablation_cached_8_repeated_cached_8slots_r03.json"
+    },
+    "044_ablation_cached_8_repeated_cached_8slots_r04": {
+      "benchmark_id": "911d34d6-e739-4d4d-b9b7-3726e8ae27aa",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/044_ablation_cached_8_repeated_cached_8slots_r04.json"
+    },
+    "045_ablation_cached_8_repeated_cached_8slots_r05": {
+      "benchmark_id": "818069e2-1b32-4fa1-be98-c42de197d470",
+      "final_status": "COMPLETED",
+      "result_json": "/Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/experiment_results/report_matrix_20260411T224526Z/runs/045_ablation_cached_8_repeated_cached_8slots_r05.json"
+    }
+  }
+}

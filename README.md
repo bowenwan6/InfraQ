@@ -35,25 +35,45 @@ The project is built around one research goal: **compare request scheduling stra
 ## Architecture
 
 ```mermaid
-flowchart LR
-    U[Browser / API Client] --> G[Spring Boot Gateway]
-    G --> RQ[RabbitMQ]
-    G --> RD[Redis]
-    G --> PG[PostgreSQL]
-    RQ --> W[Python Worker]
-    W --> O[Ollama on macOS Host]
-    W --> RD
-    W --> PG
+sequenceDiagram
+    autonumber
+    participant C as Browser / API Client
+    participant G as Gateway (Spring Boot)
+    participant R as Redis
+    participant P as PostgreSQL
+    participant Q as RabbitMQ
+    participant W as Worker (Python asyncio)
+    participant O as Ollama on macOS Host
+
+    C->>G: Submit request or start benchmark
+    G->>P: Persist request or benchmark metadata
+    G->>R: Write initial status; publish benchmark config when needed
+    G->>Q: Enqueue inference work
+    G-->>C: Return request ID or benchmark ID
+
+    Q-->>W: Deliver queued request
+    W->>R: Read active strategy; update metrics and status
+    W->>O: Run inference on cache miss
+    O-->>W: Generated response
+    W->>R: Write fast status, cache entries, and counters
+    W->>P: Persist final result and timings
+
+    C->>G: Poll request status or fetch benchmark results
+    G->>R: Read live status and runtime metrics
+    G->>P: Read durable history and benchmark summaries
+    G-->>C: Return response state and results
 ```
 
-The gateway returns immediately, writes request state to PostgreSQL and Redis, and enqueues work in RabbitMQ. The worker consumes from RabbitMQ, applies the active scheduling strategy, and talks to Ollama through `host.docker.internal`.
+InfraQ separates admission, queueing, execution, and persistence so local LLM serving can be benchmarked without rebuilding the model runtime itself.
 
-Redis is used for four separate jobs:
+- The `gateway` is the control plane. It exposes the HTTP API and dashboard, accepts requests, stores initial metadata, launches benchmark runs, and returns immediately instead of blocking on inference.
+- `RabbitMQ` is the queue boundary. It absorbs bursts and gives the worker a stable backlog to schedule against.
+- The `worker` is the scheduling engine. It applies `sequential`, `static`, `continuous`, or `cached`, manages slot usage, and decides whether a request should hit Ollama or return from cache.
+- `Ollama` stays on the macOS host so Apple Metal acceleration remains available through `host.docker.internal`.
+- `Redis` is the fast-state layer for live request status, prompt-result caching, runtime metrics, and worker configuration.
+- `PostgreSQL` is the durable history layer for request records, benchmark runs, and per-request timing data.
 
-- Request status fast-path for the browser UI
-- Prompt-result cache for the `cached` strategy
-- Live worker metrics and counters
-- Runtime configuration shared between gateway and worker
+During benchmark runs, the gateway first waits for the worker to become idle, writes the requested strategy and slot count to Redis, clears the relevant prompt-cache keys for that run, and only then submits the experiment workload. That is what makes back-to-back comparisons reproducible.
 
 ## Core Features
 

@@ -1,0 +1,66 @@
+{
+  "created_at_utc": "2026-04-14T03:13:10.645145+00:00",
+  "updated_at_utc": "2026-04-14T04:17:36.764570+00:00",
+  "completed_runs": {
+    "001_experiment_a_parallel4_unique_sequential_1slots_r01": {
+      "benchmark_id": "48f5676c-1446-406a-a868-6ca4d89f77d5",
+      "final_status": "COMPLETED",
+      "result_json": "experiment_results/expa_parallel4_20260414T031310Z/runs/001_experiment_a_parallel4_unique_sequential_1slots_r01.json"
+    },
+    "002_experiment_a_parallel4_unique_static_8slots_r01": {
+      "benchmark_id": "e20770dd-f8bb-4047-81b6-928e2ddceebc",
+      "final_status": "COMPLETED",
+      "result_json": "experiment_results/expa_parallel4_20260414T031310Z/runs/002_experiment_a_parallel4_unique_static_8slots_r01.json"
+    },
+    "003_experiment_a_parallel4_unique_continuous_8slots_r01": {
+      "benchmark_id": "2c10f08c-d311-499e-9407-9d712fbb84bb",
+      "final_status": "COMPLETED",
+      "result_json": "experiment_results/expa_parallel4_20260414T031310Z/runs/003_experiment_a_parallel4_unique_continuous_8slots_r01.json"
+    },
+    "004_experiment_a_parallel4_unique_cached_8slots_r01": {
+      "benchmark_id": "67a27313-01b9-414f-8016-0e778f3c6cc7",
+      "final_status": "COMPLETED",
+      "result_json": "experiment_results/expa_parallel4_20260414T031310Z/runs/004_experiment_a_parallel4_unique_cached_8slots_r01.json"
+    },
+    "005_experiment_a_parallel4_unique_sequential_1slots_r02": {
+      "benchmark_id": "e93c4afc-9977-4268-bee3-e96e733aa7c9",
+      "final_status": "COMPLETED",
+      "result_json": "experiment_results/expa_parallel4_20260414T031310Z/runs/005_experiment_a_parallel4_unique_sequential_1slots_r02.json"
+    },
+    "006_experiment_a_parallel4_unique_static_8slots_r02": {
+      "benchmark_id": "c7519eeb-2562-4cdc-8b02-e35824ba565b",
+      "final_status": "COMPLETED",
+      "result_json": "experiment_results/expa_parallel4_20260414T031310Z/runs/006_experiment_a_parallel4_unique_static_8slots_r02.json"
+    },
+    "007_experiment_a_parallel4_unique_continuous_8slots_r02": {
+      "benchmark_id": "c26a1356-126e-4554-8b0b-927d85c24aed",
+      "final_status": "COMPLETED",
+      "result_json": "experiment_results/expa_parallel4_20260414T031310Z/runs/007_experiment_a_parallel4_unique_continuous_8slots_r02.json"
+    },
+    "008_experiment_a_parallel4_unique_cached_8slots_r02": {
+      "benchmark_id": "ab105096-b4fb-481b-91d1-1dd8f6bf7957",
+      "final_status": "COMPLETED",
+      "result_json": "experiment_results/expa_parallel4_20260414T031310Z/runs/008_experiment_a_parallel4_unique_cached_8slots_r02.json"
+    },
+    "009_experiment_a_parallel4_unique_sequential_1slots_r03": {
+      "benchmark_id": "52a0b5eb-721c-4f51-a960-f0721b131f6e",
+      "final_status": "COMPLETED",
+      "result_json": "experiment_results/expa_parallel4_20260414T031310Z/runs/009_experiment_a_parallel4_unique_sequential_1slots_r03.json"
+    },
+    "010_experiment_a_parallel4_unique_static_8slots_r03": {
+      "benchmark_id": "0f210add-318c-4b41-a275-e90626c2aa46",
+      "final_status": "COMPLETED",
+      "result_json": "experiment_results/expa_parallel4_20260414T031310Z/runs/010_experiment_a_parallel4_unique_static_8slots_r03.json"
+    },
+    "011_experiment_a_parallel4_unique_continuous_8slots_r03": {
+      "benchmark_id": "97040983-ed70-41d0-a56f-58c41621eb79",
+      "final_status": "COMPLETED",
+      "result_json": "experiment_results/expa_parallel4_20260414T031310Z/runs/011_experiment_a_parallel4_unique_continuous_8slots_r03.json"
+    },
+    "012_experiment_a_parallel4_unique_cached_8slots_r03": {
+      "benchmark_id": "a07005a1-a5c1-4243-ad00-0779251c6cc8",
+      "final_status": "COMPLETED",
+      "result_json": "experiment_results/expa_parallel4_20260414T031310Z/runs/012_experiment_a_parallel4_unique_cached_8slots_r03.json"
+    }
+  }
+}

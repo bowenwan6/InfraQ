@@ -64,8 +64,11 @@ behind vLLM and SGLang, to a Mac~M1 inference stack via RabbitMQ, Redis, and a P
 asyncio worker, without CUDA.
 On repeated-prompt workloads, cache-aware dispatching achieved
 \textbf{5.6$\times$ higher throughput} and \textbf{76\% lower average latency}
-over non-cached strategies; on unique-prompt workloads, continuous dispatching reduced
-P95 tail latency by 3\% over static batching by eliminating batch-boundary stalls.}
+over non-cached strategies; on unique-prompt workloads (OLLAMA\_NUM\_PARALLEL=4,
+3~repeats), parallel strategies achieved \textbf{60\% higher throughput} over sequential
+(0.368 vs.\ 0.230\,req/s) and \textbf{38\% lower P95 tail latency} (252\,s vs.\ 409\,s),
+with continuous dispatching consistently edging static batching by eliminating
+batch-boundary stalls.}
 
 \vspace{2pt}
 
@@ -73,9 +76,10 @@ P95 tail latency by 3\% over static batching by eliminating batch-boundary stall
 \section{Problem and Idea}
 
 Small engineering teams increasingly run shared local LLMs on a Mac server rather than
-routing queries to cloud APIs. The problems are predictable: concurrent requests pile
-up with no queue, repeated prompts get re-inferred from scratch every time, and there
-is no built-in way to compare scheduling choices.
+routing queries to cloud APIs. The problems are predictable: without a queue, concurrent
+requests pile up and latency becomes unpredictable; even with a queue, a serial consumer
+leaves server-side concurrency idle; repeated prompts get re-inferred from scratch every
+time; and switching scheduling strategy requires restarting the serving stack.
 
 vLLM~\cite{vllm} and SGLang~\cite{sglang} solve these problems at the GPU kernel level:
 continuous batching avoids batch-boundary idle time, and prefix caching reuses KV tensors
@@ -83,9 +87,10 @@ across shared prompt prefixes. Both require NVIDIA hardware and CUDA toolchains 
 most small teams cannot justify.
 
 InfraQ re-implements both techniques at the infrastructure layer, so they work on any
-machine running Ollama~\cite{ollama}, including Mac~M1. Teams sharing a local LLM get
-lower latency under load, fewer redundant inferences, and a reproducible way to compare
-scheduling choices on their own workload.
+machine running Ollama~\cite{ollama}, including Mac~M1. The result is four concrete capabilities: an async RabbitMQ queue that decouples
+acceptance from inference; a K-slot parallel scheduler that exploits server-side
+concurrency; an exact-match Redis cache that returns repeated prompts in $\sim$11\,ms;
+and a live Redis configuration channel that hot-swaps strategy without container restarts.
 
 %% ─── 2. Scheduling Strategies ───────────────────────────────────────────────
 \section{Scheduling Strategies}
@@ -199,7 +204,9 @@ the new strategy without container restarts.
 %% ─── 4. Experimental Results ────────────────────────────────────────────────
 \section{Experimental Results}
 
-MacBook Air M1 (8\,GB), Qwen2.5:1.5b via Ollama; 100~requests per run, 5~repeats.
+MacBook Air M1 (8\,GB), Qwen2.5:1.5b via Ollama; 100~requests per run.
+Experiment~A: 3~repeats, \texttt{OLLAMA\_NUM\_PARALLEL=4} (enables true concurrent inference).
+Experiment~B and ablation: 5~repeats.
 Unique runs used 100 distinct prompts (40 topics $\times$ 4 templates, no repeats).
 Repeated runs cycled an 8-prompt hot set for 80\% of requests and inserted unique
 prompts for the remaining 20\%, yielding an average 71\% cache hit rate.
@@ -209,17 +216,17 @@ Raw data are in \texttt{summary.csv} and \texttt{manifest.json} in the submissio
 
 \begin{table}[H]
 \centering
-\caption{Experiment A --- unique prompts (no cache benefit). 5-run averages.}
+\caption{Experiment A --- unique prompts (no cache benefit). 3-run averages, OLLAMA\_NUM\_PARALLEL=4.}
 \label{tab:expa}
 \small\setlength{\tabcolsep}{7pt}
 \begin{tabular}{lcrrr}
 \toprule
 Strategy        & Slots & Avg latency & P95     & Throughput   \\
 \midrule
-Sequential      & 1     & 188\,s      & 442\,s  & 0.213\,req/s \\
-Static batching & 8     & 185\,s      & 438\,s  & 0.213\,req/s \\
-Continuous      & 8     & 180\,s      & \textbf{426\,s} & \textbf{0.219\,req/s} \\
-Cached          & 8     & 179\,s      & 430\,s  & 0.218\,req/s \\
+Sequential      & 1     & 174\,s      & 409\,s  & 0.230\,req/s \\
+Static batching & 8     & 110\,s      & 263\,s  & 0.364\,req/s \\
+Continuous      & 8     & 104\,s      & \textbf{252\,s} & \textbf{0.368\,req/s} \\
+Cached          & 8     & 108\,s      & 254\,s  & 0.370\,req/s \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -230,7 +237,7 @@ Cached          & 8     & 179\,s      & 430\,s  & 0.218\,req/s \\
 \begin{axis}[
   xbar,
   width=0.76\linewidth, height=4.2cm,
-  xmin=0.195, xmax=0.225,
+  xmin=0.20, xmax=0.41,
   xlabel={Throughput (req/s)},
   ytick={0,1,2,3},
   yticklabels={Sequential 1sl, Static 8sl, Continuous 8sl, Cached 8sl},
@@ -247,22 +254,24 @@ Cached          & 8     & 179\,s      & 430\,s  & 0.218\,req/s \\
   tick style={midgray},
 ]
 \addplot[fill=uoeblue!70, draw=uoeblue!90] coordinates {
-  (0.213,0) (0.213,1) (0.219,2) (0.218,3)
+  (0.230,0) (0.364,1) (0.368,2) (0.370,3)
 };
 \end{axis}
 \end{tikzpicture}
-\caption{Throughput on the unique-prompt workload (Experiment~A). Differences between
-strategies are small ($\le$3\%) because all four share the same Ollama token-generation
-ceiling; continuous dispatching still edges the others by avoiding batch-boundary stalls.}
+\caption{Throughput on the unique-prompt workload (Experiment~A, OLLAMA\_NUM\_PARALLEL=4).
+Parallel strategies are 60\% faster than sequential; continuous dispatching edges static
+batching by 1\% (0.368 vs.\ 0.364\,req/s) by eliminating batch-boundary stalls.}
 \label{fig:expa}
 \end{figure}
 
 With every prompt unique the cache cannot fire, so the numbers isolate the scheduling
-mechanism. Continuous dispatching beats static batching on throughput by 2.8\%
-(0.219 vs.\ 0.213\,req/s) and on P95 tail latency by 2.7\% (426\,s vs.\ 438\,s),
-consistently across all five repeats. Static batching waits for the slowest request in
-a batch before refilling any freed slot; continuous dispatching refills the moment a
-slot frees.
+mechanism. With \texttt{OLLAMA\_NUM\_PARALLEL=4} enabling true concurrent inference,
+parallel strategies (static, continuous, cached) reach 0.364--0.370\,req/s, versus
+0.230\,req/s for sequential --- a 60\% throughput advantage. Continuous dispatching edges
+static batching on throughput by 1\% and on P95 tail latency by 4\% (252\,s vs.\
+263\,s), consistently across all three repeats. Static batching waits for the slowest
+request in a batch before refilling any freed slot; continuous dispatching refills
+the moment a slot frees.
 
 \subsection*{Cache-aware dispatching on repeated prompts}
 

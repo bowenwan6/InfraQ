@@ -27,9 +27,9 @@ The project is built around one research goal: **compare request scheduling stra
 - **MacBook-first**: Ollama runs natively on macOS instead of inside Docker, which is the right tradeoff for Apple GPU access.
 - **Asynchronous by default**: requests are accepted immediately, queued through RabbitMQ, and processed by a worker.
 - **Fast + durable state**: Redis serves low-latency status polling; PostgreSQL keeps a durable record of requests and benchmark runs.
-- **Research-oriented**: approximates continuous batching and prefix caching at the infrastructure layer so the strategies can be compared on consumer Apple hardware.
+- **Exact-match prompt cache**: repeated prompts return from Redis in ~11 ms, skipping the inference server entirely.
 - **Hot-switchable runtime**: the worker can drain in-flight work, adopt a new strategy, and continue without container restarts.
-- **Repeatable benchmarks**: the benchmark launcher handles worker-idle checks, runtime config application, cache clearing, request submission, and result capture for side-by-side experiments.
+- **Mac-native scheduling**: brings continuous batching and exact-match prefix caching to Apple hardware — no CUDA required.
 - **Built-in dashboard**: ships with a browser UI for submission, metrics, and benchmark visualization.
 
 ## Architecture
@@ -140,8 +140,13 @@ ollama pull qwen2.5:1.5b
 If Ollama is not already running:
 
 ```bash
-ollama serve
+OLLAMA_NUM_PARALLEL=4 ollama serve
 ```
+
+> Setting `OLLAMA_NUM_PARALLEL=4` lets Ollama handle up to four concurrent inference
+> requests internally. This is required to observe the full throughput difference between
+> scheduling strategies in Experiment A — without it, Ollama serialises all requests
+> regardless of how many slots the worker holds open.
 
 ### 2. Start the stack
 
@@ -218,9 +223,9 @@ Recommended usage:
 
 ## Evaluation Summary
 
-The report-backed benchmark matrix in this repository ran on a **MacBook Air M1 (8 GB)** using **Ollama + `qwen2.5:1.5b`**, with **100 requests per run** and **5 repeats per condition**.
+The report-backed benchmark matrix in this repository ran on a **MacBook Air M1 (8 GB)** using **Ollama + `qwen2.5:1.5b`**, with **100 requests per run**. Experiment A used 3 repeats with `OLLAMA_NUM_PARALLEL=4`; Experiment B and the ablation used 5 repeats.
 
-- On the `unique` workload, scheduling improvements were real but modest. `continuous_8` delivered the best non-cache result at `180 s` average latency and `0.219 req/s`, versus `188 s` and `0.213 req/s` for `sequential_1`.
+- On the `unique` workload (Experiment A, `OLLAMA_NUM_PARALLEL=4`, 3 repeats), parallel strategies achieved a clear advantage. `continuous_8` reached `104 s` average latency and `0.368 req/s`; `sequential_1` reached `174 s` and `0.230 req/s` — a 60% throughput gap. Continuous dispatching also reduced P95 by 4% over static batching (252 s vs. 263 s) by refilling slots immediately instead of waiting for the slowest request in a batch.
 - On the `repeated` workload, caching was the dominant optimization. `cached_4` reached `0.961 req/s` with a `71%` cache hit rate, cutting average latency from roughly `299 s` to `73 s` relative to non-cached 4-slot runs.
 - The slot-count ablation showed that `cached_4` outperformed `cached_8` (`0.961 req/s` vs `0.699 req/s`). More concurrency created more simultaneous misses before the cache warmed, so higher slot counts were not automatically better.
 - Across all 45 runs in the report matrix, every run completed successfully.
@@ -228,8 +233,9 @@ The report-backed benchmark matrix in this repository ran on a **MacBook Air M1 
 The corresponding artifacts are included in the repository:
 
 - [Report source](./report/cw3_explanation.tex)
-- [Benchmark manifest](./experiment_results/report_matrix_20260411T224526Z/manifest.json)
-- [Benchmark summary](./experiment_results/report_matrix_20260411T224526Z/summary.csv)
+- [Experiment A manifest](./experiment_results/expa_parallel4_20260414T031310Z/manifest.json) (OLLAMA_NUM_PARALLEL=4, 3 repeats)
+- [Experiment A summary](./experiment_results/expa_parallel4_20260414T031310Z/summary.csv)
+- [Experiment B + ablation summary](./experiment_results/report_matrix_20260411T224526Z/summary.csv)
 
 ## Reproducing the Report Experiments
 
@@ -248,7 +254,7 @@ The script records:
 
 The current report matrix covers:
 
-- `Experiment A`: `unique / 100 / 5 repeats` for `sequential_1`, `static_8`, `continuous_8`, `cached_8`
+- `Experiment A`: `unique / 100 / 3 repeats / OLLAMA_NUM_PARALLEL=4` for `sequential_1`, `static_8`, `continuous_8`, `cached_8`
 - `Experiment B`: `repeated / 100 / 5 repeats` for `sequential_1`, `static_4`, `continuous_4`, `cached_4`
 - `Ablation`: `repeated / 100 / 5 repeats` for `cached_8`
 

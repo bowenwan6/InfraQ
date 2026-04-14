@@ -1,0 +1,42 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyperFirstAtBeginDocument{\AtBeginDocument}
+\HyperFirstAtBeginDocument{\ifx\hyper@anchor\@undefined
+\global\let\oldnewlabel\newlabel
+\gdef\newlabel#1#2{\newlabelxx{#1}#2}
+\gdef\newlabelxx#1#2#3#4#5#6{\oldnewlabel{#1}{{#2}{#3}}}
+\AtEndDocument{\ifx\hyper@anchor\@undefined
+\let\newlabel\oldnewlabel
+\fi}
+\fi}
+\global\let\hyper@last\relax 
+\gdef\HyperFirstAtBeginDocument#1{#1}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{vllm}
+\citation{sglang}
+\citation{ollama}
+\@writefile{toc}{\contentsline {section}{\numberline {1}Problem and Idea}{1}{section.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2}Scheduling Strategies}{1}{section.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces The four scheduling strategies in InfraQ.\relax }}{1}{table.caption.1}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{tab:strategies}{{1}{1}{The four scheduling strategies in InfraQ.\relax }{table.caption.1}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {3}Architecture}{1}{section.3}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces InfraQ system architecture. The top row shows the synchronous request path; the bottom row shows persistent storage and the inference engine. The dashed arrow is the Redis configuration channel through which live strategy changes propagate from the gateway to the worker.\relax }}{2}{figure.caption.2}\protected@file@percent }
+\newlabel{fig:arch}{{1}{2}{InfraQ system architecture. The top row shows the synchronous request path; the bottom row shows persistent storage and the inference engine. The dashed arrow is the Redis configuration channel through which live strategy changes propagate from the gateway to the worker.\relax }{figure.caption.2}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Experimental Results}{2}{section.4}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Experiment A --- unique prompts (no cache benefit). 3-run averages, OLLAMA\_NUM\_PARALLEL=4.\relax }}{2}{table.caption.3}\protected@file@percent }
+\newlabel{tab:expa}{{2}{2}{Experiment A --- unique prompts (no cache benefit). 3-run averages, OLLAMA\_NUM\_PARALLEL=4.\relax }{table.caption.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Throughput on the unique-prompt workload (Experiment\nobreakspace  {}A, OLLAMA\_NUM\_PARALLEL=4). Parallel strategies are 60\% faster than sequential; continuous dispatching edges static batching by 1\% (0.368 vs.\ 0.364\,req/s) by eliminating batch-boundary stalls.\relax }}{2}{figure.caption.4}\protected@file@percent }
+\newlabel{fig:expa}{{2}{2}{Throughput on the unique-prompt workload (Experiment~A, OLLAMA\_NUM\_PARALLEL=4). Parallel strategies are 60\% faster than sequential; continuous dispatching edges static batching by 1\% (0.368 vs.\ 0.364\,req/s) by eliminating batch-boundary stalls.\relax }{figure.caption.4}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Experiment B --- repeated prompts (hot prompt set). 5-run averages.\relax }}{3}{table.caption.5}\protected@file@percent }
+\newlabel{tab:expb}{{3}{3}{Experiment B --- repeated prompts (hot prompt set). 5-run averages.\relax }{table.caption.5}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5}Implementation}{3}{section.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6}AI Usage}{3}{section.6}\protected@file@percent }
+\bibcite{vllm}{1}
+\bibcite{sglang}{2}
+\bibcite{ollama}{3}
+\newlabel{LastPage}{{}{4}{}{page.4}{}}
+\xdef\lastpage@lastpage{4}
+\xdef\lastpage@lastpageHy{4}
+\gdef \@abspage@last{4}

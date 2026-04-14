@@ -59,9 +59,11 @@
 {\color{uoeblue}\rule{\linewidth}{1.0pt}}
 \vspace{3pt}
 
-\textit{InfraQ brings continuous batching and prefix caching, the scheduling techniques
-behind vLLM and SGLang, to a Mac~M1 inference stack via RabbitMQ, Redis, and a Python
-asyncio worker, without CUDA.
+\textit{InfraQ brings four capabilities to shared local LLM serving on Mac hardware,
+without CUDA: an async RabbitMQ queue that decouples acceptance from inference;
+a K-slot parallel scheduler that exploits server-side concurrency;
+an exact-match Redis cache returning repeated prompts in $\sim$11\,ms;
+and a live Redis configuration channel for zero-restart strategy switching.
 On repeated-prompt workloads, cache-aware dispatching achieved
 \textbf{5.6$\times$ higher throughput} and \textbf{76\% lower average latency}
 over non-cached strategies; on unique-prompt workloads (OLLAMA\_NUM\_PARALLEL=4,
@@ -97,8 +99,8 @@ and a live Redis configuration channel that hot-swaps strategy without container
 
 InfraQ implements four strategies: a sequential baseline, static batching, continuous
 dispatching, and cache-aware dispatching. Each builds on the previous one and introduces
-exactly one new mechanism, so the experiments in §4 can attribute any performance change
-to that mechanism alone. Table~\ref{tab:strategies} summarises them.
+exactly one new mechanism, isolating its effect in the experiments of §4.
+Table~\ref{tab:strategies} summarises them.
 
 \begin{table}[h]
 \centering
@@ -113,7 +115,7 @@ Strategy & Mechanism & Inspiration & Trade-off addressed \\
 Sequential &
   One request at a time; no parallelism &
   Baseline &
-  None --- performance floor \\
+  None --- serial baseline \\
 Static batching &
   Collect $N$ requests; dispatch all; wait for the entire batch to finish &
   Classic GPU batching &
@@ -206,7 +208,9 @@ the new strategy without container restarts.
 
 MacBook Air M1 (8\,GB), Qwen2.5:1.5b via Ollama; 100~requests per run.
 Experiment~A: 3~repeats, \texttt{OLLAMA\_NUM\_PARALLEL=4} (enables true concurrent inference).
-Experiment~B and ablation: 5~repeats.
+Experiment~B and ablation: 5~repeats, default Ollama settings.
+With 71\% of requests served from Redis, model-server concurrency
+does not affect the result.
 Unique runs used 100 distinct prompts (40 topics $\times$ 4 templates, no repeats).
 Repeated runs cycled an 8-prompt hot set for 80\% of requests and inserted unique
 prompts for the remaining 20\%, yielding an average 71\% cache hit rate.

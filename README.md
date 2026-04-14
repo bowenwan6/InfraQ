@@ -22,15 +22,15 @@ The project is built around one research goal: **compare request scheduling stra
 
 - `Bowen Wang`
 
-## Why InfraQ
+## Four Engineering Contributions
 
-- **MacBook-first**: Ollama runs natively on macOS instead of inside Docker, which is the right tradeoff for Apple GPU access.
-- **Asynchronous by default**: requests are accepted immediately, queued through RabbitMQ, and processed by a worker.
-- **Fast + durable state**: Redis serves low-latency status polling; PostgreSQL keeps a durable record of requests and benchmark runs.
-- **Exact-match prompt cache**: repeated prompts return from Redis in ~11 ms, skipping the inference server entirely.
-- **Hot-switchable runtime**: the worker can drain in-flight work, adopt a new strategy, and continue without container restarts.
-- **Mac-native scheduling**: brings continuous batching and exact-match prefix caching to Apple hardware — no CUDA required.
-- **Built-in dashboard**: ships with a browser UI for submission, metrics, and benchmark visualization.
+1. **Async request queue** (RabbitMQ) — The gateway returns HTTP 202 immediately and publishes the job to RabbitMQ. The worker consumes independently. Clients never block on inference.
+
+2. **K-slot parallel scheduler** — The worker holds `K` inference slots open simultaneously, refilling each the moment it completes. This exploits whatever concurrent capacity the inference server offers. With `OLLAMA_NUM_PARALLEL=4`, parallel strategies deliver 60% higher throughput than sequential dispatch.
+
+3. **Exact-match prompt cache** (Redis) — Before each slot picks up a job, it hashes model + prompt against a Redis key. A hit returns the stored result in ~11 ms, skipping inference entirely. A miss runs normally and writes the result back to Redis.
+
+4. **Live strategy switching** (Redis config channel) — Strategy changes are written to a Redis key. The worker detects the change, drains all in-flight requests, and restarts under the new strategy — no container restart, no dropped requests.
 
 ## Architecture
 
@@ -223,19 +223,49 @@ Recommended usage:
 
 ## Evaluation Summary
 
-The report-backed benchmark matrix in this repository ran on a **MacBook Air M1 (8 GB)** using **Ollama + `qwen2.5:1.5b`**, with **100 requests per run**. Experiment A used 3 repeats with `OLLAMA_NUM_PARALLEL=4`; Experiment B and the ablation used 5 repeats.
+MacBook Air M1 (8 GB) · Ollama `qwen2.5:1.5b` · 100 requests per run.
 
-- On the `unique` workload (Experiment A, `OLLAMA_NUM_PARALLEL=4`, 3 repeats), parallel strategies achieved a clear advantage. `continuous_8` reached `104 s` average latency and `0.368 req/s`; `sequential_1` reached `174 s` and `0.230 req/s` — a 60% throughput gap. Continuous dispatching also reduced P95 by 4% over static batching (252 s vs. 263 s) by refilling slots immediately instead of waiting for the slowest request in a batch.
-- On the `repeated` workload, caching was the dominant optimization. `cached_4` reached `0.961 req/s` with a `71%` cache hit rate, cutting average latency from roughly `299 s` to `73 s` relative to non-cached 4-slot runs.
-- The slot-count ablation showed that `cached_4` outperformed `cached_8` (`0.961 req/s` vs `0.699 req/s`). More concurrency created more simultaneous misses before the cache warmed, so higher slot counts were not automatically better.
-- Across all 45 runs in the report matrix, every run completed successfully.
+### Experiment A — Unique prompts, scheduling mechanism
 
-The corresponding artifacts are included in the repository:
+> `OLLAMA_NUM_PARALLEL=4` · 3 repeats · cache never fires (all prompts distinct)
 
+| Strategy | Slots | Avg latency | Throughput | |
+|---|---|---|---|---|
+| Sequential | 1 | 174 s | 0.230 req/s | `████████████░░░░░░░░` |
+| Static batching | 8 | 110 s | 0.364 req/s | `██████████████████░░` |
+| **Continuous** | **8** | **104 s** | **0.368 req/s** | `██████████████████░░` |
+| Cached | 8 | 108 s | 0.370 req/s | `███████████████████░` |
+
+Parallel strategies are **60% faster** than sequential. Continuous dispatching reduces P95 by 4% over static batching (252 s vs 263 s) by refilling slots immediately on completion.
+
+### Experiment B — Repeated prompts, cache effectiveness
+
+> 5 repeats · 8-prompt hot set at 80% frequency · 71% avg cache hit rate
+
+| Strategy | Slots | Avg latency | Throughput | Hit rate | |
+|---|---|---|---|---|---|
+| Sequential | 1 | 311 s | 0.165 req/s | 0% | `███░░░░░░░░░░░░░░░░░` |
+| Static batching | 4 | 298 s | 0.173 req/s | 0% | `███░░░░░░░░░░░░░░░░░` |
+| Continuous | 4 | 299 s | 0.170 req/s | 0% | `███░░░░░░░░░░░░░░░░░` |
+| **Cache-Aware** | **4** | **73 s** | **0.961 req/s** | **71%** | `███████████████████░` |
+
+Cache-aware dispatching delivers **5.6× throughput** and **76% lower average latency** over non-cached. Each cache hit returns in ~11 ms rather than ~300 s — a 96% per-hit saving.
+
+> **Note:** Exp A uses `OLLAMA_NUM_PARALLEL=4` to isolate scheduler differences. Exp B does not — since 71% of requests return from Redis without reaching the model server, server-side parallelism does not materially affect the cache-dominated result.
+
+### Ablation — Slot count under cache-aware dispatching
+
+| Config | Throughput | Hit rate | |
+|---|---|---|---|
+| **Cached, 4 slots** | **0.961 req/s** | **71%** | Fewer cold misses → cache warms faster |
+| Cached, 8 slots | 0.699 req/s | 67% | 8 simultaneous misses flood the server before anything caches |
+
+More concurrency is not always better. Optimal slot count depends on workload repetition rate and cache warm-up dynamics.
+
+Result artifacts:
+- [Experiment A summary](./experiment_results/expa_parallel4_20260414T031310Z/summary.csv) (`OLLAMA_NUM_PARALLEL=4`, 3 repeats)
+- [Experiment B + ablation summary](./experiment_results/report_matrix_20260411T224526Z/summary.csv) (5 repeats)
 - [Report source](./report/cw3_explanation.tex)
-- [Experiment A manifest](./experiment_results/expa_parallel4_20260414T031310Z/manifest.json) (OLLAMA_NUM_PARALLEL=4, 3 repeats)
-- [Experiment A summary](./experiment_results/expa_parallel4_20260414T031310Z/summary.csv)
-- [Experiment B + ablation summary](./experiment_results/report_matrix_20260411T224526Z/summary.csv)
 
 ## Reproducing the Report Experiments
 

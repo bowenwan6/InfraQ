@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023) (preloaded format=pdflatex 2024.2.29)  14 APR 2026 13:34
+This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023) (preloaded format=pdflatex 2024.2.29)  15 APR 2026 16:17
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -700,20 +700,20 @@ LaTeX Font Info:    External font `lmex10' loaded for size
 LaTeX Font Info:    External font `lmex10' loaded for size
 (Font)              <5> on input line 73.
 LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <9> on input line 111.
+(Font)              <9> on input line 112.
 LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <6> on input line 111.
+(Font)              <6> on input line 112.
 
-Underfull \hbox (badness 10000) in paragraph at lines 121--121
+Underfull \hbox (badness 10000) in paragraph at lines 122--122
 []|\T1/lmr/m/n/9 (+20) Classic GPU
  []
 
 
-Underfull \hbox (badness 3098) in paragraph at lines 131--132
+Underfull \hbox (badness 3098) in paragraph at lines 132--133
 []|\T1/lmr/m/n/9 (+20) Near-zero la-tency for re-
  []
 
-LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 143.
+LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 144.
 (/usr/local/texlive/2023/texmf-dist/tex/latex/lm/t1lmtt.fd
 File: t1lmtt.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
@@ -730,15 +730,15 @@ Package rerunfilecheck Info: File `cw3_explanation.out' has not changed.
 (rerunfilecheck)             Checksum: 0EDD8DA0A11AA6D7C888372130C3401A;728.
  ) 
 Here is how much of TeX's memory you used:
- 34648 strings out of 476025
- 807067 string characters out of 5790017
+ 34644 strings out of 476025
+ 807023 string characters out of 5790017
  1879388 words of memory out of 5000000
  54389 multiletter control sequences out of 15000+600000
- 582691 words of font info for 134 fonts, out of 8000000 for 9000
+ 582525 words of font info for 132 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
  99i,11n,103p,1253b,2311s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/local/texlive/2023/texmf-dist/fonts/type1/public/lm/lmbx12.pfb></usr/local/texlive/2023/texmf-dist/fonts/type1/public/lm/lmbx9.pfb></usr/local/texlive/2023/texmf-dist/fonts/type1/public/lm/lmbxi10.pfb></usr/local/texlive/2023/texmf-dist/fonts/type1/public/lm/lmmi10.pfb></usr/local/texlive/2023/texmf-dist/fonts/type1/public/lm/lmmi9.pfb></usr/local/texlive/2023/texmf-dist/fonts/type1/public/lm/lmr10.pfb></usr/local/texlive/2023/texmf-dist/fonts/type1/public/lm/lmr12.pfb></usr/local/texlive/2023/texmf-dist/fonts/type1/public/lm/lmr9.pfb></usr/local/texlive/2023/texmf-dist/fonts/type1/public/lm/lmri10.pfb></usr/local/texlive/2023/texmf-dist/fonts/type1/public/lm/lmri7.pfb></usr/local/texlive/2023/texmf-dist/fonts/type1/public/lm/lmri9.pfb></usr/local/texlive/2023/texmf-dist/fonts/type1/public/lm/lmsy10.pfb></usr/local/texlive/2023/texmf-dist/fonts/type1/public/lm/lmsy9.pfb></usr/local/texlive/2023/texmf-dist/fonts/type1/public/lm/lmtt10.pfb></usr/local/texlive/2023/texmf-dist/fonts/type1/public/lm/lmtt9.pfb>
-Output written on cw3_explanation.pdf (4 pages, 314354 bytes).
+Output written on cw3_explanation.pdf (4 pages, 314156 bytes).
 PDF statistics:
  158 PDF objects out of 1000 (max. 8388607)
  119 compressed objects within 2 object streams

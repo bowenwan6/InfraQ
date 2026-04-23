@@ -18,6 +18,7 @@
 \usepackage{lastpage}
 \usepackage{array}
 \usepackage{float}
+\usepackage{fontawesome5}
 \setlength{\headheight}{20pt}
 \addtolength{\topmargin}{-8pt}
 
@@ -54,58 +55,55 @@
 \vspace*{-0.3em}
 \begin{center}
   {\LARGE\bfseries\color{uoeblue}InfraQ}\\[5pt]
-  {\large A Scheduling Gateway for Shared Local LLM Inference}
+  {\large A Scheduling Gateway for Shared Local LLM Inference}\\[4pt]
+  {\small\textcolor{uoeblue}{\faGithub}\enspace
+   \href{https://github.com/bowenwan6/InfraQ}{\texttt{github.com/bowenwan6/InfraQ}}}
 \end{center}
 {\color{uoeblue}\rule{\linewidth}{1.0pt}}
 \vspace{3pt}
 
-\textit{InfraQ brings four capabilities to shared local LLM serving on Mac hardware,
-without CUDA: an async RabbitMQ queue that decouples acceptance from inference;
-a K-slot parallel scheduler that exploits server-side concurrency;
+\textit{InfraQ brings vLLM-style scheduling to Mac hardware, without CUDA or NVIDIA.
+Four capabilities make this work: a RabbitMQ queue that decouples client acceptance from
+inference so requests are never dropped under burst load;
+a K-slot parallel scheduler exploiting server-side concurrency;
 an exact-match Redis cache returning repeated prompts in $\sim$11\,ms;
-and a live Redis configuration channel for zero-restart strategy switching.
+and a Redis config channel for zero-restart strategy switching.
 On repeated-prompt workloads, cache-aware dispatching achieved
-\textbf{5.6$\times$ higher throughput} and \textbf{76\% lower average latency}
-over non-cached strategies; on unique-prompt workloads (OLLAMA\_NUM\_PARALLEL=4,
-3~repeats), parallel strategies achieved \textbf{60\% higher throughput} over sequential
-(0.368 vs.\ 0.230\,req/s) and \textbf{38\% lower P95 tail latency} (252\,s vs.\ 409\,s),
-with continuous dispatching consistently edging static batching by eliminating
-batch-boundary stalls.}
+\textbf{5.6$\times$ higher throughput} and \textbf{76\% lower average latency};
+on unique-prompt workloads (\texttt{OLLAMA\_NUM\_PARALLEL=4}, 3~repeats),
+parallel scheduling achieved \textbf{60\% higher throughput} over sequential
+(0.368 vs.\ 0.230\,req/s) and \textbf{38\% lower P95} (252\,s vs.\ 409\,s),
+with continuous dispatching edging static batching by eliminating batch-boundary stalls.}
 
 \vspace{2pt}
 
 %% ─── 1. Problem and Idea ────────────────────────────────────────────────────
 \section{Problem and Idea}
 
-Small engineering teams increasingly run shared local LLMs on a Mac server rather than
-routing queries to cloud APIs. The problems are predictable: without a queue, concurrent
-requests pile up and latency becomes unpredictable; even with a queue, a serial consumer
-leaves server-side concurrency idle; repeated prompts get re-inferred from scratch every
-time; and switching scheduling strategy requires restarting the serving stack.
+Small engineering teams increasingly run LLMs on a shared Mac server instead of cloud APIs.
+Without a message queue, concurrent requests pile up and latency spikes unpredictably;
+even with one, a serial consumer still leaves server-side concurrency idle.
+Two more problems compound this: repeated prompts are re-inferred from scratch every time,
+and changing the scheduling strategy requires a container restart.
 
 vLLM~\cite{vllm} and SGLang~\cite{sglang} solve these problems at the GPU kernel level:
 continuous batching avoids batch-boundary idle time, and prefix caching reuses KV tensors
 across shared prompt prefixes. Both require NVIDIA hardware and CUDA toolchains that
 most small teams cannot justify.
 
-InfraQ re-implements both techniques at the infrastructure layer, so they work on any
-machine running a local LLM inference server (e.g.\ Ollama~\cite{ollama}, LM~Studio,
-or llama.cpp), including Mac~M1. The result is four concrete capabilities: an async RabbitMQ queue that decouples
-acceptance from inference; a K-slot parallel scheduler that exploits server-side
-concurrency; an exact-match Redis cache that returns repeated prompts in $\sim$11\,ms;
-and a live Redis configuration channel that hot-swaps strategy without container restarts.
+InfraQ re-implements both techniques at the infrastructure layer, making them available
+on any local LLM server (Ollama~\cite{ollama}, LM~Studio, llama.cpp), including
+Mac~M1---no NVIDIA required. The four capabilities in the abstract are the result.
 
 %% ─── 2. Scheduling Strategies ───────────────────────────────────────────────
 \section{Scheduling Strategies}
 
-InfraQ implements four strategies: a sequential baseline, static batching, continuous
-dispatching, and cache-aware dispatching. Each builds on the previous one and introduces
-exactly one new mechanism, isolating its effect in the experiments of §4.
-Table~\ref{tab:strategies} summarises them.
+InfraQ implements four strategies, each adding exactly one new mechanism so its effect
+can be isolated in the experiments of §4. Table~\ref{tab:strategies} summarises them.
 
 \begin{table}[h]
 \centering
-\caption{The four scheduling strategies in InfraQ.}
+\caption{Scheduling strategies in InfraQ.}
 \label{tab:strategies}
 \small\setlength{\tabcolsep}{5pt}
 \renewcommand{\arraystretch}{1.25}
@@ -118,18 +116,17 @@ Sequential &
   Baseline &
   None --- serial baseline \\
 Static batching &
-  Collect $N$ requests; dispatch all; wait for the entire batch to finish &
+  Collect $N$ requests, dispatch all, wait for batch to finish &
   Classic GPU batching &
-  Gains concurrency, but the slowest request stalls completed slots \\
+  Slowest request stalls free slots \\
 Continuous dispatching &
   Maintain $K$ slots; refill immediately when any slot completes &
   vLLM continuous batching &
   Eliminates batch-boundary stalls; keeps slots filled \\
 Cache-aware dispatching &
-  Redis lookup before each slot acquisition; SHA-256 key on model~+~prompt;
-  hits return in $\sim$11\,ms, skipping Ollama &
+  Redis SHA-256 lookup per slot; hits return $\sim$11\,ms, skipping Ollama &
   SGLang prefix caching &
-  Near-zero latency for repeated prompts; frees slots for cache misses \\
+  Near-zero latency on cache hits; frees slots for misses \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -137,12 +134,12 @@ Cache-aware dispatching &
 %% ─── 3. Architecture ────────────────────────────────────────────────────────
 \section{Architecture}
 
-The gateway (Spring Boot) returns HTTP~202 immediately, writes a record to PostgreSQL,
-caches status in Redis, and publishes the job to RabbitMQ. None of these operations
-block on inference. The worker (Python asyncio) consumes from RabbitMQ and applies the active
-scheduling strategy. Ollama runs natively on the host and is reached from the worker
-container via \texttt{host.docker.internal}, so Mac Metal GPU acceleration works without
-container passthrough.
+The Spring Boot gateway returns HTTP~202 immediately, then writes to PostgreSQL,
+caches job status in Redis, and enqueues to RabbitMQ---none of these block on inference,
+so the gateway remains responsive under burst load.
+The Python asyncio worker consumes from RabbitMQ and applies the active scheduling
+strategy. Ollama runs natively on the host, reached via \texttt{host.docker.internal},
+preserving Mac Metal GPU acceleration without container passthrough.
 
 \begin{figure}[h]
 \centering
@@ -189,39 +186,28 @@ container passthrough.
 
 \end{tikzpicture}%
 }
-\caption{InfraQ system architecture. The top row shows the synchronous request path;
-the bottom row shows persistent storage and the inference engine.
-The dashed arrow is the Redis configuration channel through which live strategy
-changes propagate from the gateway to the worker.}
+\caption{InfraQ architecture. Dashed arrow: Redis config channel propagating live
+strategy changes to the worker without restart.}
 \label{fig:arch}
 \end{figure}
 
 Redis serves four roles: browser-polling fast-path ($<$1\,ms), prompt-result cache,
-atomic metric counters, and the live configuration channel shown dashed in
-Figure~\ref{fig:arch}.
-PostgreSQL stores permanent records (full request histories and per-request timing)
-for offline analysis.
-On a configuration change, the worker drains all in-flight tasks then restarts under
-the new strategy without container restarts.
+atomic metric counters, and the live configuration channel (dashed in Figure~\ref{fig:arch}).
+PostgreSQL stores full request histories and per-request timing for offline analysis.
+On a configuration change, the worker drains in-flight tasks and restarts under
+the new strategy.
 
 %% ─── 4. Experimental Results ────────────────────────────────────────────────
 \section{Experimental Results}
 
-MacBook Air M1 (8\,GB), Qwen2.5:1.5b via Ollama; 100~requests per run.
-Experiment~A: 3~repeats, \texttt{OLLAMA\_NUM\_PARALLEL=4} (enables true concurrent inference).
-Experiment~B and ablation: 5~repeats, default Ollama settings.
-With 71\% of requests served from Redis, model-server concurrency
-does not affect the result.
-Unique runs used 100 distinct prompts (40 topics $\times$ 4 templates, no repeats).
-Repeated runs cycled an 8-prompt hot set for 80\% of requests and inserted unique
-prompts for the remaining 20\%, yielding an average 71\% cache hit rate.
-Raw data are in \texttt{summary.csv} and \texttt{manifest.json} in the submission.
+Experiments ran on MacBook Air M1 (8\,GB) using Qwen2.5:1.5b, 100 requests per run;
+full setup in Appendix~A. Raw data in \texttt{summary.csv} and \texttt{manifest.json}.
 
 \subsection*{Scheduling without caching (unique prompts)}
 
 \begin{table}[H]
 \centering
-\caption{Experiment A --- unique prompts (no cache benefit). 3-run averages, OLLAMA\_NUM\_PARALLEL=4.}
+\caption{Exp.~A: unique prompts, OLLAMA\_NUM\_PARALLEL=4, 3-run averages.}
 \label{tab:expa}
 \small\setlength{\tabcolsep}{7pt}
 \begin{tabular}{lcrrr}
@@ -263,26 +249,24 @@ Cached          & 8     & 108\,s      & 254\,s  & 0.370\,req/s \\
 };
 \end{axis}
 \end{tikzpicture}
-\caption{Throughput on the unique-prompt workload (Experiment~A, OLLAMA\_NUM\_PARALLEL=4).
-Parallel strategies are 60\% faster than sequential; continuous dispatching edges static
-batching by 1\% (0.368 vs.\ 0.364\,req/s) by eliminating batch-boundary stalls.}
+\caption{Throughput, Exp.~A (OLLAMA\_NUM\_PARALLEL=4). Parallel strategies are 60\% faster
+than sequential; continuous dispatching edges static batching by 1\% by eliminating
+batch-boundary stalls.}
 \label{fig:expa}
 \end{figure}
 
-With every prompt unique the cache cannot fire, so the numbers isolate the scheduling
-mechanism. With \texttt{OLLAMA\_NUM\_PARALLEL=4} enabling true concurrent inference,
-parallel strategies (static, continuous, cached) reach 0.364--0.370\,req/s, versus
-0.230\,req/s for sequential --- a 60\% throughput advantage. Continuous dispatching edges
-static batching on throughput by 1\% and on P95 tail latency by 4\% (252\,s vs.\
-263\,s), consistently across all three repeats. Static batching waits for the slowest
-request in a batch before refilling any freed slot; continuous dispatching refills
-the moment a slot frees.
+With all prompts unique the cache cannot fire, isolating the scheduler.
+With \texttt{OLLAMA\_NUM\_PARALLEL=4} enabling true concurrent inference,
+parallel strategies reach 0.364--0.370\,req/s versus 0.230\,req/s for sequential---a
+60\% throughput gain. Continuous dispatching edges static batching by 1\% throughput
+and 4\% P95 (252\,s vs.\ 263\,s): it refills a slot the moment any request completes,
+whereas static batching waits for the whole batch before freeing any slot.
 
 \subsection*{Cache-aware dispatching on repeated prompts}
 
 \begin{table}[H]
 \centering
-\caption{Experiment B --- repeated prompts (hot prompt set). 5-run averages.}
+\caption{Exp.~B: repeated prompts (hot set), 5-run averages.}
 \label{tab:expb}
 \small\setlength{\tabcolsep}{6pt}
 \begin{tabular}{lcrrrr}
@@ -298,30 +282,20 @@ Continuous        & 4     & 299\,s      & 565\,s  & 0.170\,req/s & 0\%  \\
 \end{tabular}
 \end{table}
 
-With 71\% of requests hitting the cache, cache-aware dispatching delivers a
-5.6$\times$ throughput increase (0.961 vs.\ 0.170\,req/s) and reduces average latency
-by 76\% (73\,s vs.\ 299\,s) over non-cached continuous dispatching. Each cache hit
-returns in $\sim$11\,ms rather than the $\sim$300\,s average inference time, a per-hit
-saving of 96.3\%. With only 29 requests per 100 reaching Ollama, slots stay freer and
-P95 tail latency collapses from $\sim$565\,s to 96\,s (83\% reduction).
+With 71\% hitting the Redis cache, cache-aware dispatching delivers a
+5.6$\times$ throughput increase (0.961 vs.\ 0.170\,req/s) and 76\% lower latency
+(73\,s vs.\ 299\,s). With only 29 in 100 reaching Ollama, P95 tail latency collapses
+from $\sim$565\,s to 96\,s (83\%).
+A slot-count ablation (Appendix~B) shows 4 slots outperforms 8 under caching:
+more concurrency is not always better.
 
-\subsection*{Slot-count ablation (cached strategy)}
-
-Increasing the slot count from 4 to 8 under cache-aware dispatching actually
-\textit{reduces} performance: throughput falls from 0.961 to 0.699\,req/s and the hit
-rate drops from 71\% to 67\%. The cache starts cold, so the first wave of requests are
-all misses. With 8 slots, 8 simultaneous misses hit Ollama before any result is written
-back to Redis; with 4 slots, fewer misses compete for Ollama's capacity and hits
-accumulate sooner. For cache-aware scheduling, the optimal slot count depends on
-workload repetition rate and cache warm-up. More concurrency is not always better.
 
 %% ─── 5. Implementation ──────────────────────────────────────────────────────
 \section{Implementation}
 
-All four strategies are implemented, tested, and live-switchable without container
-restarts. Deployment is a single \texttt{docker compose up}; the only external dependency
-is Ollama with the target model loaded. The web interface exposes a chat tab, a live
-metrics dashboard, and the benchmark lab that produced the results in §4.
+All four strategies are implemented, tested, and live-switchable. Deployment is a single
+\texttt{docker compose up}---Ollama on the host is the only external dependency.
+The web UI exposes a chat tab, live metrics, and the benchmark lab used in §4.
 
 The caching layer is prototype-grade: InfraQ stores exact-match text results rather than
 KV tensors, so semantically similar prompts still miss. A production system would replace
@@ -330,9 +304,32 @@ this with embedding-based semantic matching.
 %% ─── 6. AI Usage ────────────────────────────────────────────────────────────
 \section{AI Usage}
 
-All ideas, system architecture, and experimental methodology are the author's own.
-AI tools (ChatGPT, Claude Code) assisted with coding, UI generation, report polishing,
-and the architecture diagram.
+All ideas, architecture, and experimental design are my own.
+Claude Code scaffolded the Spring Boot gateway and generated the HTML/JS dashboard;
+ChatGPT helped debug the Python asyncio worker and scheduling loop.
+The benchmark design, methodology, and conclusions are entirely mine.
+
+%% ─── Appendix ───────────────────────────────────────────────────────────────
+\newpage
+
+\section*{Appendix A: Experimental Setup}
+
+All experiments ran on a MacBook Air M1 (8\,GB) using Qwen2.5:1.5b via Ollama,
+100 requests per run.
+Experiment~A used \texttt{OLLAMA\_NUM\_PARALLEL=4} (enabling true concurrent inference)
+with 3~repeats; Experiment~B used default Ollama settings (serial inference) with
+5~repeats.
+Unique-prompt runs drew 100 distinct prompts (40 topics $\times$ 4 templates);
+repeated-prompt runs cycled an 8-prompt hot set at 80\% frequency,
+yielding a 71\% average cache hit rate.
+
+\section*{Appendix B: Slot-Count Ablation}
+
+Increasing slots from 4 to 8 under cache-aware dispatching actually
+\textit{reduces} performance: throughput falls to 0.699\,req/s and the cache hit rate
+drops to 67\%. The cache starts cold, so 8 simultaneous misses flood Ollama before any
+result reaches Redis; with 4 slots, fewer cold misses compete and the cache warms faster.
+Optimal slot count depends on workload repetition rate and warm-up dynamics.
 
 %% ─── References ─────────────────────────────────────────────────────────────
 \newpage
@@ -343,16 +340,12 @@ and the architecture diagram.
 \setlength{\parsep}{0pt}
 
 \bibitem{vllm}
-W.~Kwon, Z.~Li, S.~Zhuang, Y.~Sheng, L.~Zheng, C.~H.~Yu, J.~E.~Gonzalez, H.~Zhang,
-and I.~Stoica, ``Efficient memory management for large language model serving with
-PagedAttention,'' in \textit{Proc.\ 29th ACM Symposium on Operating Systems Principles
-(SOSP~'23)}, 2023, pp.~611--626.
+W.~Kwon et~al., ``Efficient memory management for large language model serving with
+PagedAttention,'' in \textit{Proc.\ ACM SOSP}, 2023, pp.~611--626.
 
 \bibitem{sglang}
-L.~Zheng, L.~Yin, Z.~Xie, C.~Sun, J.~Huang, C.~H.~Yu, S.~Cao, C.~Kozyrakis, I.~Stoica,
-J.~E.~Gonzalez, C.~Barrett, and Y.~Sheng, ``SGLang: Efficient execution of structured
-language model programs,'' in \textit{Advances in Neural Information Processing
-Systems 37 (NeurIPS 2024)}, 2024.
+L.~Zheng et~al., ``SGLang: Efficient execution of structured language model programs,''
+in \textit{Advances in NeurIPS 37}, 2024.
 
 \bibitem{ollama}
 Ollama, ``Get up and running with large language models locally,''

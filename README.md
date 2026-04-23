@@ -126,6 +126,28 @@ The web UI includes:
 
 ## Quick Start
 
+### Option A — Load pre-built images (no build tools required)
+
+Pre-built images are included in the `images/` directory of the submission.
+
+```bash
+docker load -i images/infraq-gateway.tar
+docker load -i images/infraq-worker.tar
+docker compose up
+```
+
+> Skip `--build` when using pre-built images — `docker compose up` will use the loaded images directly.
+
+### Option B — Build from source
+
+Requires Docker Desktop (Maven and Python are handled inside the build containers).
+
+```bash
+docker compose up --build
+```
+
+---
+
 ### 1. Prerequisites
 
 - A **MacBook running macOS**

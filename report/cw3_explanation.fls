@@ -2,7 +2,7 @@ PWD /Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/report
 INPUT /usr/local/texlive/2023/texmf.cnf
 INPUT /usr/local/texlive/2023/texmf-dist/web2c/texmf.cnf
 INPUT /usr/local/texlive/2023/texmf-var/web2c/pdftex/pdflatex.fmt
-INPUT cw3_explanation.tex
+INPUT /Users/xxxwbwxxx/Documents/UoE/ACP/infraQ/report/cw3_explanation.tex
 OUTPUT cw3_explanation.log
 INPUT /usr/local/texlive/2023/texmf-dist/tex/latex/base/article.cls
 INPUT /usr/local/texlive/2023/texmf-dist/tex/latex/base/article.cls

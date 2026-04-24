@@ -86,10 +86,9 @@ even with one, a serial consumer still leaves server-side concurrency idle.
 Two more problems compound this: repeated prompts are re-inferred from scratch every time,
 and changing the scheduling strategy requires a container restart.
 
-vLLM~\cite{vllm} and SGLang~\cite{sglang} solve these problems at the GPU kernel level:
-continuous batching avoids batch-boundary idle time, and prefix caching reuses KV tensors
-across shared prompt prefixes. Both require NVIDIA hardware and CUDA toolchains that
-most small teams cannot justify.
+vLLM~\cite{vllm} and SGLang~\cite{sglang} solve these at the GPU kernel level---continuous
+batching and KV-cache prefix reuse---but both require NVIDIA hardware that most small
+teams cannot justify.
 
 InfraQ re-implements both techniques at the infrastructure layer, making them available
 on any local LLM server (Ollama~\cite{ollama}, LM~Studio, llama.cpp), including
@@ -137,6 +136,9 @@ Cache-aware dispatching &
 The Spring Boot gateway returns HTTP~202 immediately, then writes to PostgreSQL,
 caches job status in Redis, and enqueues to RabbitMQ---none of these block on inference,
 so the gateway remains responsive under burst load.
+Spring Boot was chosen for its production-grade embedded HTTP server and dependency
+injection; PostgreSQL for its durable, queryable record store that persists across
+container restarts.
 The Python asyncio worker consumes from RabbitMQ and applies the active scheduling
 strategy. Ollama runs natively on the host, reached via \texttt{host.docker.internal},
 preserving Mac Metal GPU acceleration without container passthrough.
@@ -193,9 +195,6 @@ strategy changes to the worker without restart.}
 
 Redis serves four roles: browser-polling fast-path ($<$1\,ms), prompt-result cache,
 atomic metric counters, and the live configuration channel (dashed in Figure~\ref{fig:arch}).
-PostgreSQL stores full request histories and per-request timing for offline analysis.
-On a configuration change, the worker drains in-flight tasks and restarts under
-the new strategy.
 
 %% ─── 4. Experimental Results ────────────────────────────────────────────────
 \section{Experimental Results}
@@ -293,13 +292,20 @@ more concurrency is not always better.
 %% ─── 5. Implementation ──────────────────────────────────────────────────────
 \section{Implementation}
 
-All four strategies are implemented, tested, and live-switchable. Deployment is a single
-\texttt{docker compose up}---Ollama on the host is the only external dependency.
-The web UI exposes a chat tab, live metrics, and the benchmark lab used in §4.
+The worker implements $K$-slot concurrency as $K$ independent asyncio coroutines, each
+pulling jobs from RabbitMQ---asyncio gives I/O-bound parallelism without thread-pool
+overhead. On a strategy change, in-flight slots complete before switching; no request
+is dropped.
 
-The caching layer is prototype-grade: InfraQ stores exact-match text results rather than
-KV tensors, so semantically similar prompts still miss. A production system would replace
-this with embedding-based semantic matching.
+The benchmark framework records \texttt{summary.csv}, \texttt{manifest.json}, and per-run
+JSON artifacts, making every result in §4 reproducible from the submitted data.
+Deployment is \texttt{docker compose up}: all five services start in health-checked
+dependency order with Ollama on the host as the only external requirement.
+The dashboard covers the full usage loop: chat, live metrics, benchmark lab,
+and runtime strategy switching.
+
+The caching layer is prototype-grade (exact-match text, not KV tensors);
+a production system would use embedding-based semantic matching.
 
 %% ─── 6. AI Usage ────────────────────────────────────────────────────────────
 \section{AI Usage}
